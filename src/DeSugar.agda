@@ -1,6 +1,6 @@
 
 
-module DeSuger where
+module DeSugar where
 
 open import Data.List
 

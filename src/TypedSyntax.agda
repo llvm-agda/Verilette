@@ -8,8 +8,7 @@ open import Agda.Builtin.Bool
 open import Agda.Builtin.Int   public using () renaming (Int to Integer)
 open import Agda.Builtin.Float public using () renaming (Float to Double)
 
-
-open import Data.Product
+open import Data.Product hiding (Σ)
 
 open import Javalette.AST using (Type) renaming (Ident to Id)
 open Type public
@@ -26,13 +25,18 @@ infix 1 _∈_
 data _∈_ (e : A)  : List A → Set where
   zero : e ∈ e ∷ xs
   suc  : e ∈ xs → e ∈ x ∷ xs
+  
+infix 1 _∉_
+data _∉_ (e : A)  : List A → Set where
+  -- notIn : {!!} → e ∉ xs -- TODO not in
 
 data _∈'_ (e : A) : List (List A) → Set where
   zero : e ∈  xs → e ∈' (xs ∷ ys)
   suc  : e ∈' ys → e ∈' (xs ∷ ys)
 
+
 SymbolTab : Set
-SymbolTab = List (Id  × ((List Type) × Type))
+SymbolTab = List (Id × ((List Type) × Type))
 
 Block : Set
 Block = List (Id × Type)
@@ -60,7 +64,7 @@ toSet (fun t ts) = Void -- toFun t ts
 data LogicOp  : Set where && ||     : LogicOp
 data EqOp     : Set where == !=     : EqOp
 data OrdOp    : Set where < <= > >= : OrdOp
-data ArithOp  : Set where + - * / % : ArithOp
+data ArithOp  : Set where + - * /   : ArithOp
 
 
 data Eq : (T : Type) → Set where
@@ -78,16 +82,19 @@ data Num : (T : Type) → Set where
 
 -- LIFTED TypeD List
 infixr 5 _:+_
-data TList {A} ( e : Type → Set A ) : (As : List Type) → Set A where
-  NIL : TList e []
+data TList (e : Type → Set) : (As : List Type) → Set where
+  NIL  : TList e []
   _:+_ : ∀ {A AS} → e A → TList e AS → TList e (A ∷ AS)
 
 -- data Op (const : C a) (a : A) (b : B) where
 
 
 variable
-  T : Type
-
+  T t : Type
+  ts  : List Type
+  Δ Δ₁ Δ₂ : Block
+  Γ Γ' : Ctx
+  Σ : SymbolTab
 
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
@@ -95,25 +102,24 @@ variable
 data Exp (Γ : Ctx) : Type → Set where
   EValue : toSet T  → Exp Γ T
   EId    : (id : Id) → (id , T) ∈' Γ → Exp Γ T
---  EAPP   : {AS : List Type} → id T → TList Exp AS → Exp T
-  EArith :  Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
-  EMod   :  Exp Γ int → ArithOp → Exp Γ int → Exp Γ int
-  EOrd   :  { Ord T } → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
-  EEq    :  { Eq T } → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
+  EAPP   : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
+  EArith : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
+  EMod   : Exp Γ int → Exp Γ int → Exp Γ int
+  EOrd   : { Ord T } → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
+  EEq    : { Eq T } → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
   ELogic : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
-  EAss   : (id : Id) → (id , T) ∈' Γ  → Exp Γ T →  Exp Γ T
-  eNeg   : {Eq T} → Exp Γ T → Exp Γ T
-
--- data Decl (T : Type) : Set where
+  ENeg   : Num T → Exp Γ T → Exp Γ T
+  ENot   : Exp Γ bool → Exp Γ bool
 
 
 mutual
-  data Stm (T : Type) (Γ : Ctx) : (Γ' : Ctx) → Set  where
+  data Stm (T : Type) : (Γ : Ctx) → (Γ' : Ctx) → Set  where
        SExp    : {X : Type} → Exp Γ X → Stm T Γ Γ
---       SDecl   : {as : List Type} → TList Id as → Stm T Γ (as ∷ Γ)
-       SWhile  : {Δ : Block} → Exp Γ bool  → Stm T ([] ∷ Γ) (Δ ∷ Γ)  → Stm T Γ Γ
-       SBlock  : {Δ : Block} → Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
-       SIfElse : {Δ₁ Δ₂ : Block} → Exp Γ bool → Stm T ([] ∷ Γ) (Δ₁ ∷ Γ) → Stm T ([] ∷ Γ) (Δ₂ ∷ Γ)  → Stm T Γ Γ
+       SDecl   : (t : Type) → (id : Id) → (id , t) ∉ Δ → Stm T (Δ ∷ Γ) (((id , t) ∷ Δ) ∷ Γ)
+       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ Γ
+       SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) (Δ ∷ Γ)  → Stm T Γ Γ
+       SBlock  : Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
+       SIfElse : Exp Γ bool → Stms T ([] ∷ Γ) (Δ₁ ∷ Γ) → Stms T ([] ∷ Γ) (Δ₂ ∷ Γ)  → Stm T Γ Γ
        SReturn : Exp Γ T  → Stm T Γ Γ
 
   data Stms (T : Type) (Γ : Ctx) : (Γ' : Ctx) → Set where
