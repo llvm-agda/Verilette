@@ -25,22 +25,22 @@ declr t [] = []
 declr t (noInit x ∷ xs) = decl t x ∷           declr t xs
 declr t (init x e ∷ xs) = decl t x ∷ ass x e ∷ declr t xs
 
-deSuger : Stmt → List Stm
-deSuger empty              = []
-deSuger (decl t is)        = declr t is
-deSuger (ass x e)          = ass x e                          ∷ []
-deSuger (incr x)           = incDec x inc                     ∷ []
-deSuger (decr x)           = incDec x dec                     ∷ []
-deSuger (ret e)            = ret e                            ∷ []
-deSuger (vRet)             = vRet                             ∷ []
-deSuger (cond e y)         = ifElse e (deSuger y) []          ∷ []
-deSuger (condElse e x y)   = ifElse e (deSuger x) (deSuger y) ∷ []
-deSuger (while e y)        = while e (deSuger y)              ∷ []
-deSuger (sExp e)           = sExp e                           ∷ []
-deSuger (bStmt (block ss)) = block (deSugerList ss)           ∷ []
-  where deSugerList : List Stmt → List Stm
-        deSugerList []       = []
-        deSugerList (x ∷ xs) = deSuger x ++ deSugerList xs
+deSugar : Stmt → List Stm
+deSugar empty              = []
+deSugar (decl t is)        = declr t is
+deSugar (ass x e)          = ass x e                          ∷ []
+deSugar (incr x)           = incDec x inc                     ∷ []
+deSugar (decr x)           = incDec x dec                     ∷ []
+deSugar (ret e)            = ret e                            ∷ []
+deSugar (vRet)             = vRet                             ∷ []
+deSugar (cond e y)         = ifElse e (deSugar y) []          ∷ []
+deSugar (condElse e x y)   = ifElse e (deSugar x) (deSugar y) ∷ []
+deSugar (while e y)        = while e (deSugar y)              ∷ []
+deSugar (sExp e)           = sExp e                           ∷ []
+deSugar (bStmt (block ss)) = block (deSugarList ss)           ∷ []
+  where deSugarList : List Stmt → List Stm
+        deSugarList []       = []
+        deSugarList (x ∷ xs) = deSugar x ++ deSugarList xs
 
 
 -- data _⇓_ : (s : Stmt) → (s' : Stmt) → Set where

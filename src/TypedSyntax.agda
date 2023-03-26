@@ -3,7 +3,7 @@ module TypedSyntax where
 open import Agda.Builtin.List
 open import Agda.Builtin.String
 open import Agda.Builtin.Nat
-
+open import Agda.Builtin.Equality
 open import Agda.Builtin.Bool
 open import Agda.Builtin.Int   public using () renaming (Int to Integer)
 open import Agda.Builtin.Float public using () renaming (Float to Double)
@@ -21,18 +21,33 @@ variable
   ys : List (List A)
   x y : A
 
+data ⊥ : Set where
+
 infix 1 _∈_
+
+¬_ : Set → Set
+¬ A = A → ⊥
+
+_≢_ : ∀ {A} → A → A → Set
+x ≢ y  =  ¬ (x ≡ y)
+
+
+
 data _∈_ (e : A)  : List A → Set where
   zero : e ∈ e ∷ xs
   suc  : e ∈ xs → e ∈ x ∷ xs
-  
-infix 1 _∉_
-data _∉_ (e : A)  : List A → Set where
+
+-- infix 1 _∉_
+-- data _∉_ (e : A)  : List A → Set where
+--   ∉[] : e ∉ []
+--   ∉suc : e ∉ xs → e ∉ x ∷ xs
   -- notIn : {!!} → e ∉ xs -- TODO not in
 
 data _∈'_ (e : A) : List (List A) → Set where
   zero : e ∈  xs → e ∈' (xs ∷ ys)
   suc  : e ∈' ys → e ∈' (xs ∷ ys)
+
+
 
 
 SymbolTab : Set
@@ -44,18 +59,21 @@ Block = List (Id × Type)
 Ctx : Set
 Ctx = List Block
 
+
+data _∉_ (id : Id) : Block → Set where
+  zero : id ∉ []
+  suc  : ∀ {id' t} → id ≢ id' → id ∉ xs → id ∉ ((id' , t) ∷ xs)
+
 --------------------------------------------------------------------------------
 -- Basic defs
-
-data Void : Set where
 
 
 toSet : Type → Set
 toSet bool = Bool
 toSet int = Integer
 toSet doub = Double
-toSet void = Void
-toSet (fun t ts) = Void -- toFun t ts
+toSet void = ⊥
+toSet (fun t ts) = ⊥ -- toFun t ts
   where
     toFun : Type → List Type → Set
     toFun x [] = toSet x
@@ -113,25 +131,27 @@ data Exp (Γ : Ctx) : Type → Set where
 
 
 mutual
-  data Stm (T : Type) : (Γ : Ctx) → (Γ' : Ctx) → Set  where
+  data Stm : (T : Type) → (Γ : Ctx) → (Γ' : Ctx) → Set  where
        SExp    : {X : Type} → Exp Γ X → Stm T Γ Γ
-       SDecl   : (t : Type) → (id : Id) → (id , t) ∉ Δ → Stm T (Δ ∷ Γ) (((id , t) ∷ Δ) ∷ Γ)
+       SDecl   : (t : Type) → (id : Id) → id ∉ Δ → Stm T (Δ ∷ Γ) (((id , t) ∷ Δ) ∷ Γ)
        SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ Γ
-       SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) (Δ ∷ Γ)  → Stm T Γ Γ
+       SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
        SBlock  : Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
        SIfElse : Exp Γ bool → Stms T ([] ∷ Γ) (Δ₁ ∷ Γ) → Stms T ([] ∷ Γ) (Δ₂ ∷ Γ)  → Stm T Γ Γ
        SReturn : Exp Γ T  → Stm T Γ Γ
+       VReturn : Stm void Γ Γ
 
   data Stms (T : Type) (Γ : Ctx) : (Γ' : Ctx) → Set where
     SEmpty : Stms T Γ Γ
     SStms  : {Γ' Γ'' : Ctx} → Stm T Γ Γ' → Stms T Γ' Γ'' → Stms T Γ Γ''
 
 
+
 record Def (Γ : Ctx) (T : Type) : Set  where
   constructor Fun
   field
     funId  : Id
-    body   : ∀ {Γ'} → Stm T Γ Γ'
+    body   : ∀ {Γ'} → Stms T Γ Γ'
 
 data SomeDef : Set where
   someDef : {Γ : Ctx} → {a : Type} → Def Γ a → SomeDef
