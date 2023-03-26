@@ -37,11 +37,6 @@ data _∈_ (e : A)  : List A → Set where
   zero : e ∈ e ∷ xs
   suc  : e ∈ xs → e ∈ x ∷ xs
 
--- infix 1 _∉_
--- data _∉_ (e : A)  : List A → Set where
---   ∉[] : e ∉ []
---   ∉suc : e ∉ xs → e ∉ x ∷ xs
-  -- notIn : {!!} → e ∉ xs -- TODO not in
 
 data _∈'_ (e : A) : List (List A) → Set where
   zero : e ∈  xs → e ∈' (xs ∷ ys)
@@ -131,27 +126,30 @@ data Exp (Γ : Ctx) : Type → Set where
 
 
 mutual
-  data Stm : (T : Type) → (Γ : Ctx) → (Γ' : Ctx) → Set  where
-       SExp    : {X : Type} → Exp Γ X → Stm T Γ Γ
-       SDecl   : (t : Type) → (id : Id) → id ∉ Δ → Stm T (Δ ∷ Γ) (((id , t) ∷ Δ) ∷ Γ)
-       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ Γ
-       SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
-       SBlock  : Stms T ([] ∷ Γ) (Δ ∷ Γ) → Stm T Γ Γ
-       SIfElse : Exp Γ bool → Stms T ([] ∷ Γ) (Δ₁ ∷ Γ) → Stms T ([] ∷ Γ) (Δ₂ ∷ Γ)  → Stm T Γ Γ
-       SReturn : Exp Γ T  → Stm T Γ Γ
-       VReturn : Stm void Γ Γ
+  data Stm : (T : Type) → (Γ : Ctx) → Set  where
+    SExp    : {X : Type} → Exp Γ X → Stm T Γ 
+    SDecl   : (t : Type) → (id : Id) → id ∉ Δ → Stm T (Δ ∷ Γ)
+    SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ 
+    SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) → Stm T Γ 
+    SBlock  : Stms T ([] ∷ Γ) → Stm T Γ 
+    SIfElse : Exp Γ bool → Stms T ([] ∷ Γ) → Stms T ([] ∷ Γ) → Stm T Γ 
+    SReturn : Exp Γ T  → Stm T Γ 
+    VReturn : Stm void Γ 
 
-  data Stms (T : Type) (Γ : Ctx) : (Γ' : Ctx) → Set where
-    SEmpty : Stms T Γ Γ
-    SStms  : {Γ' Γ'' : Ctx} → Stm T Γ Γ' → Stms T Γ' Γ'' → Stms T Γ Γ''
+  nextCtx : {Γ : Ctx} → Stm T Γ → Ctx
+  nextCtx {_} {(Δ ∷ Γ)} (SDecl t id x) = ((id , t) ∷ Δ) ∷ Γ
+  nextCtx {_} {Γ}       _              = Γ
 
+  data Stms (T : Type) (Γ : Ctx) : Set where
+    SEmpty  : Stms T Γ 
+    _SCons_ : (s : Stm T Γ) → Stms T (nextCtx s) → Stms T Γ 
 
 
 record Def (Γ : Ctx) (T : Type) : Set  where
   constructor Fun
   field
     funId  : Id
-    body   : ∀ {Γ'} → Stms T Γ Γ'
+    body   : Stms T Γ
 
 data SomeDef : Set where
   someDef : {Γ : Ctx} → {a : Type} → Def Γ a → SomeDef
