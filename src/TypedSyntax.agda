@@ -2,13 +2,14 @@ module TypedSyntax where
 
 open import Agda.Builtin.List
 open import Agda.Builtin.String
-open import Agda.Builtin.Nat
 open import Agda.Builtin.Equality
 open import Agda.Builtin.Bool
-open import Agda.Builtin.Int   public using () renaming (Int to Integer)
-open import Agda.Builtin.Float public using () renaming (Float to Double)
+open import Agda.Builtin.Int   using (Int) 
+open import Agda.Builtin.Float using () renaming (Float to Double)
 
 open import Data.Product hiding (Σ)
+
+open import Relation.Nullary.Negation.Core using (¬_)
 
 open import Javalette.AST using (Type) renaming (Ident to Id)
 open Type public
@@ -21,29 +22,6 @@ variable
   ys : List (List A)
   x y : A
 
-data ⊥ : Set where
-
-infix 1 _∈_
-
-¬_ : Set → Set
-¬ A = A → ⊥
-
-_≢_ : ∀ {A} → A → A → Set
-x ≢ y  =  ¬ (x ≡ y)
-
-
-
-data _∈_ (e : A)  : List A → Set where
-  zero : e ∈ e ∷ xs
-  suc  : e ∈ xs → e ∈ x ∷ xs
-
-
-data _∈'_ (e : A) : List (List A) → Set where
-  zero : e ∈  xs → e ∈' (xs ∷ ys)
-  suc  : e ∈' ys → e ∈' (xs ∷ ys)
-
-
-
 
 SymbolTab : Set
 SymbolTab = List (Id × ((List Type) × Type))
@@ -55,9 +33,26 @@ Ctx : Set
 Ctx = List Block
 
 
+data ⊥ : Set where
+
+infix 1 _∈_
+
+_≢_ : ∀ {A} → A → A → Set
+x ≢ y  =  ¬ (x ≡ y)
+
+
+data _∈_ (e : A)  : List A → Set where
+  zero : e ∈ e ∷ xs
+  suc  : e ∈ xs → e ∈ x ∷ xs
+
 data _∉_ (id : Id) : Block → Set where
   zero : id ∉ []
   suc  : ∀ {id' t} → id ≢ id' → id ∉ xs → id ∉ ((id' , t) ∷ xs)
+
+
+data _∈'_ (e : A) : List (List A) → Set where
+  zero : e ∈  xs → e ∈' (xs ∷ ys)
+  suc  : e ∈' ys → e ∈' (xs ∷ ys)
 
 --------------------------------------------------------------------------------
 -- Basic defs
@@ -65,7 +60,7 @@ data _∉_ (id : Id) : Block → Set where
 
 toSet : Type → Set
 toSet bool = Bool
-toSet int = Integer
+toSet int = Int
 toSet doub = Double
 toSet void = ⊥
 toSet (fun t ts) = ⊥ -- toFun t ts
