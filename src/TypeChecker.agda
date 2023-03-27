@@ -1,13 +1,15 @@
 {-# OPTIONS --allow-unsolved-metas #-} -- remove this later
+
 module TypeChecker where
 
 open import Agda.Builtin.Bool
 open import Data.String
+--open import Agda.Builtin.String
 open import Agda.Primitive
 open import Agda.Builtin.Equality
 
 
-open import Relation.Nullary.Decidable
+open import Relation.Nullary.Decidable hiding (map)
 open import Relation.Nullary.Reflects
 
 open import Effect.Monad.Error.Transformer
@@ -15,16 +17,16 @@ open import Effect.Monad
 
 open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left String renaming (monad to monadSum)
-open import Data.Sum.Base
+open import Data.Sum.Base hiding (map)
 open import Data.List hiding (lookup) renaming (_++_ to _+++_)
 open import Data.List.Properties using (++-assoc)
-open import Data.Product hiding (_<*>_)
+open import Data.Product hiding (_<*>_; map)
 
-open import TypedSyntax renaming (Exp to TypedExp; Stm to TypedStm; Stms to TypedStms; Program to TypedProgram)
+open import TypedSyntax renaming (Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
 open import DeSugar
 
-import TypedSyntax as T
+
 
 
 cong : ∀  {A B : Set} (f : A → B) {x y : A} → x ≡ y → f x ≡ f y
@@ -54,12 +56,21 @@ instance
 
 
 builtin : SymbolTab
-builtin = [] -- ((ident "readInt") × ([] × int)) ∷ []
+builtin = (((ident "printInt") , ([] , int))) ∷ (((ident "printString") , ([] , int))) ∷ []
+
+
+symDef : TopDef → (Id × FunType)
+symDef (fnDef t x as b) = x , map fromArg as , t
+  where fromArg : Arg → Type
+        fromArg (argument t x) = t
 
 typeCheck : (P : Prog) → TCM TypedProgram
 typeCheck (program []) = error "Missing main function"
-typeCheck (program ts) = {!!}
+typeCheck (program ts) = do pure (record
+                                    { BuiltIn = builtin ; Defs = map symDef ts ; main = {!lookup!} ; LDefs = {!!} ; unique = {!!} })
 
+
+open Typed {!!} renaming (Exp to TypedExp; Stm to TypedStm; Stms to TypedStms)
 
 unType : {Γ : Ctx} {T : Type} → TypedExp Γ T → Exp
 unType (EValue {T} x) with T
@@ -107,11 +118,6 @@ mutual
   unValidStm VReturn           = vRet
 
 
--- data ValidStms (s : List Stm) (T : Type) (Γ : Ctx) (Δ : Block) : Set where
---   valid : (Δ' : Block) → (vS : TypedStms T (Δ ∷ Γ) ((Δ' +++ Δ) ∷ Γ)) → unValidStms vS ≡ s → ValidStms s T Γ Δ
--- 
--- data ValidStm (s : Stm) (T : Type) (Γ : Ctx) (Δ : Block) : Set where
---   valid : (Δ' : Block) → (vS : TypedStm T (Δ ∷ Γ) ((Δ' +++ Δ) ∷ Γ)) → unValidStm vS ≡ s → ValidStm s T Γ Δ
 
 data WellTyped (e : Exp) (Γ : Ctx) : Set where
   inferred : (T : Type) → (eT : TypedExp Γ T) → (unType eT) ≡ e →  WellTyped e Γ
@@ -187,7 +193,8 @@ a =?= b = error "Type mismatch"
 
 
 -- Typeching of expressions uses a given context, Γ
-module CheckExp (Γ : Ctx) where
+module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
+
 
   inferExp : (e : Exp) → TCM (WellTyped e Γ)
   inferExp (eLitFalse)  = pure (EValue false ::: bool)
@@ -197,7 +204,9 @@ module CheckExp (Γ : Ctx) where
   inferExp (eVar x) = do inScope t p ← lookupCtx Γ x
                          pure (EId x p ::: t)
 
-  inferExp (eApp x es) = {!!}
+  inferExp (eApp x es) with lookup Σ x
+  ... | just (inList (ts , t) p) = do {!!}
+  ... | nothing = error "Function not defined"
 
   inferExp (eMul e1 op e2) = do e1' ::: t1 ← inferExp e1
                                 e2' ::: t2 ← inferExp e2
@@ -239,10 +248,32 @@ module CheckExp (Γ : Ctx) where
                     refl ← t =?= t'
                     pure e
 
+  dsa : List Exp → (ts : List Type) → TCM (TList (TypedExp Γ) ts)
+  dsa [] [] = pure NIL
+  dsa (x ∷ xs) (t ∷ ts) = _:+_ <$> checkExp t x <*> dsa xs ts
+  dsa _ _  = error "The number of arguments did not match the function type"
+
+  data IfJust {A : Set} : TCM A → Set where
+    IsJust : (a : A) → IfJust (inj₂ a)
+
+  fromJust : {tcm : TCM A} → IfJust (tcm) → A
+  fromJust (IsJust a) = a
 
   -- The ultimate proof
-  checkExp-proof : {T : Type} (e : Exp) (eT : TypedExp Γ T) → checkExp T e ≡ inj₂ eT → unType eT ≡ e
-  checkExp-proof e eT x = {!!}
+  checkExp-proof : {T : Type} → (e : Exp) → (eT : (IfJust (checkExp T e))) → unType (fromJust eT) ≡ e
+  checkExp-proof (eVar x) eT = {!!}
+  checkExp-proof {int} (eLitInt x) (IsJust .(EValue x)) = refl
+  checkExp-proof {doub} (eLitDoub x) (IsJust .(EValue x)) = refl
+  checkExp-proof {bool} eLitTrue (IsJust .(EValue true)) = refl
+  checkExp-proof {bool} eLitFalse (IsJust .(EValue false)) = refl
+  checkExp-proof (eApp x es) eT = {!!}
+  checkExp-proof {T} (neg e) eT = {!!}
+  checkExp-proof (not e) eT = {!!}
+  checkExp-proof (eMul e m e₁) eT = {!!}
+  checkExp-proof (eAdd e a e₁) eT = {!!}
+  checkExp-proof (eRel e r e₁) eT = {!!}
+  checkExp-proof (eAnd e e₁) eT = {!!}
+  checkExp-proof (eOr e e₁) eT = {!!}
 
 _notIn_ : (x : Id) → (xs : Block) → TCM (x ∉ xs)
 x notIn [] = pure zero
@@ -252,8 +283,9 @@ x notIn ((y , t) ∷ xs) with notidEq x y
                       pure (suc p p')
 
 
-open CheckExp
-module CheckStm (sym : SymbolTab) (T : Type) where
+
+module CheckStm (Σ : SymbolTab) (T : Type) where
+  open CheckExp Σ
 
   mutual
     checkStms : (Γ : Ctx) → (s : List Stm) → TCM (TypedStms T Γ)
@@ -267,13 +299,12 @@ module CheckStm (sym : SymbolTab) (T : Type) where
                                      pure (SExp e')
     checkStm Γ (ass x e)        = {!!}
     checkStm Γ (ret e)          = SReturn <$> checkExp Γ T e
-    checkStm Γ (vRet)           = {!!}
+    checkStm Γ (vRet)           =  {!!} --inj₂ (SBlock SEmpty)
     checkStm Γ (while e ss)     = SWhile  <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) ss
     checkStm Γ (block ss)       = SBlock  <$> checkStms ([] ∷ Γ) ss
     checkStm Γ (ifElse e s1 s2) = SIfElse <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) s1
-                                                                <*> checkStms ([] ∷ Γ) s2 
+                                                                <*> checkStms ([] ∷ Γ) s2
     checkStm Γ (incDec x op)    = {!!}
     checkStm Γ (decl t x) with Γ
     ...                | []     = error "Empty context when declaring variables"
     ...                | Δ ∷ Γ  = SDecl t x <$> x notIn Δ
-
