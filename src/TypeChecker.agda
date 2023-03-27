@@ -107,19 +107,11 @@ unValidStm VReturn           = vRet
 data WellTyped (e : Exp) (Σ : SymbolTab) (Γ : Ctx) : Set where
   inferred : (T : Type) → (eT : TypedExp Σ Γ T) → (unType eT) ≡ e →  WellTyped e Σ Γ
 
+data WellTypedList (es : List Exp) (Σ : SymbolTab) (Γ : Ctx) : Set where
+  inferred : (Ts : List Type) → (eTs : TList (TypedExp Σ Γ) Ts) → unTypeTList eTs ≡ es →  WellTypedList es Σ Γ
+
 pattern _:::_ e t = inferred t e refl
 
-getType : ∀ {e} → WellTyped e Σ Γ → Type
-getType (inferred T eT x) = T
-
-getTyped : ∀ {e} → (vt : WellTyped e Σ Γ) → TypedExp Σ Γ (getType vt)
-getTyped (inferred T eT x) = eT
-
-getProof : (e : Exp) → {vt : WellTyped e Σ Γ} → unType (getTyped vt) ≡ e
-getProof e {inferred T eT x} = x
-
-toWellTyped : (eT : TypedExp Σ Γ T) → WellTyped (unType eT) Σ Γ
-toWellTyped {T = T} eT = inferred T eT refl
 
 data InScope (Γ : Ctx) (x : Id) : Set where
   inScope : (t : Type) → (x , t) ∈' Γ → InScope Γ x
@@ -183,6 +175,7 @@ ifNum void   = error "Void is not numeric"
 ifNum (fun T ts) = error "Function is not Num type"
 
 
+eqLists : (as : List Type) → (bs : List Type) → TCM (as ≡ bs)
 _=?=_ : (a b : Type) → TCM (a ≡ b)
 bool       =?= bool       = pure refl
 int        =?= int        = pure refl
@@ -191,34 +184,38 @@ void       =?= void       = pure refl
 (fun a as) =?= (fun b bs) = do refl ← a =?= b
                                refl ← eqLists as bs
                                pure refl
-     where eqLists : (as : List Type) → (bs : List Type) → TCM (as ≡ bs)
-           eqLists []       []       = pure refl
-           eqLists (a ∷ as) (b ∷ bs) = do refl ← a =?= b
-                                          refl ← eqLists as bs
-                                          pure refl
-           eqLists _ _               = error "Type mismatch in function"
 a =?= b = error "Type mismatch"
 
+eqLists []       []       = pure refl
+eqLists (a ∷ as) (b ∷ bs) = do refl ← a =?= b
+                               refl ← eqLists as bs
+                               pure refl
+eqLists _ _               = error "Type mismatch in function"
 
 
 -- Typeching of expressions uses a given context, Γ
 module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
 
-  checkExp  : (T :       Type) →      Exp → TCM (       TypedExp Σ Γ  T)
-  checkList : (ts : List Type) → List Exp → TCM (TList (TypedExp Σ Γ) ts)
+  inferExp  : (e  :      Exp) → TCM (WellTyped     e  Σ Γ)
+  inferList : (es : List Exp) → TCM (WellTypedList es Σ Γ)
+  inferList [] = pure (inferred [] NIL refl)
+  inferList (e ∷ es) = do e'  ::: t  ← inferExp e
+                          es' ::: ts ← inferList es
+                          pure ((e' :+ es') ::: (t ∷ ts)) 
 
-  inferExp : (e : Exp) → TCM (WellTyped e Σ Γ)
+
   inferExp (eLitFalse)  = pure (EValue false ::: bool)
-  inferExp (eLitTrue)   = pure (EValue true ::: bool)
-  inferExp (eLitInt x)  = pure (EValue x ::: int)
-  inferExp (eLitDoub x) = pure (EValue x ::: doub)
+  inferExp (eLitTrue)   = pure (EValue true  ::: bool)
+  inferExp (eLitInt x)  = pure (EValue x     ::: int)
+  inferExp (eLitDoub x) = pure (EValue x     ::: doub)
   inferExp (eVar x) = do inScope t p ← lookupCtx x Γ 
                          pure (EId x p ::: t)
 
   inferExp (eApp x es) with lookup x Σ 
-  ... | just (inList (ts , t) p) = do es' ← checkList ts es
-                                      pure (inferred t (EAPP x es' p) {!!})
-  ... | nothing = error "Function not defined"
+  ... | nothing                  = error "Function not defined"
+  ... | just (inList (ts , t) p) = do es' ::: ts' ← inferList es
+                                      refl ← eqLists ts ts'
+                                      pure (EAPP x es' p ::: t)
 
   inferExp (eMul e1 op e2) = do e1' ::: t1 ← inferExp e1
                                 e2' ::: t2 ← inferExp e2
@@ -251,13 +248,11 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
                         pure (ENot e'  ::: t)
 
 
+  checkExp : (T : Type) → Exp → TCM (TypedExp Σ Γ T)
   checkExp t x = do e ::: t' ← inferExp x
                     refl ← t =?= t'
                     pure e
 
-  checkList []       []       = pure NIL
-  checkList (t ∷ ts) (x ∷ xs) = _:+_ <$> checkExp t x <*> checkList ts xs
-  checkList _ _  = error "The number of arguments did not match the function type"
 
   data IfJust {A : Set} : TCM A → Set where
     IsJust : (a : A) → IfJust (inj₂ a)
