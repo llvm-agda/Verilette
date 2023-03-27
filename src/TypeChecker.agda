@@ -1,3 +1,4 @@
+{-# OPTIONS --allow-unsolved-metas #-} -- remove this later
 module TypeChecker where
 
 open import Agda.Builtin.Bool
@@ -19,7 +20,7 @@ open import Data.List hiding (lookup) renaming (_++_ to _+++_)
 open import Data.List.Properties using (++-assoc)
 open import Data.Product hiding (_<*>_)
 
-open import TypedSyntax renaming (Exp to TypedExp; Stm to TypedStm; Stms to TypedStms)
+open import TypedSyntax renaming (Exp to TypedExp; Stm to TypedStm; Stms to TypedStms; Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
 open import DeSugar
 
@@ -50,6 +51,14 @@ instance
   monadTCM' = monadTCM
   monadSum' : RawMonad (String ⊎_)
   monadSum' = monadE
+
+
+builtin : SymbolTab
+builtin = [] -- ((ident "readInt") × ([] × int)) ∷ []
+
+typeCheck : (P : Prog) → TCM TypedProgram
+typeCheck (program []) = error "Missing main function"
+typeCheck (program ts) = {!!}
 
 
 unType : {Γ : Ctx} {T : Type} → TypedExp Γ T → Exp
@@ -178,7 +187,7 @@ a =?= b = error "Type mismatch"
 
 
 -- Typeching of expressions uses a given context, Γ
-module TypeChecking (Γ : Ctx) where
+module CheckExp (Γ : Ctx) where
 
   inferExp : (e : Exp) → TCM (WellTyped e Γ)
   inferExp (eLitFalse)  = pure (EValue false ::: bool)
@@ -243,7 +252,7 @@ x notIn ((y , t) ∷ xs) with notidEq x y
                       pure (suc p p')
 
 
-open TypeChecking
+open CheckExp
 module CheckStm (sym : SymbolTab) (T : Type) where
 
   mutual

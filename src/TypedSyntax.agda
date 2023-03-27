@@ -44,9 +44,11 @@ data _∈'_ (e : A) : List (List A) → Set where
 
 
 
+FunType : Set
+FunType = ((List Type) × Type)
 
 SymbolTab : Set
-SymbolTab = List (Id × ((List Type) × Type))
+SymbolTab = List (Id × FunType)
 
 Block : Set
 Block = List (Id × Type)
