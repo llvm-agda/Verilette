@@ -1,7 +1,6 @@
 module TypedSyntax where
 
 open import Data.List
-open import Agda.Builtin.String
 open import Agda.Builtin.Equality
 open import Agda.Builtin.Bool
 open import Agda.Builtin.Int   using (Int) 
@@ -11,7 +10,7 @@ open import Data.Product hiding (Σ; map; zip)
 
 open import Relation.Nullary.Negation.Core using (¬_)
 
-open import Javalette.AST using (Type) renaming (Ident to Id)
+open import Javalette.AST using (Type; String) renaming (Ident to Id)
 open Type public
 
 variable
@@ -115,17 +114,18 @@ module Typed (Σ : SymbolTab) where
     EAPP   : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
     EArith : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
     EMod   : Exp Γ int → Exp Γ int → Exp Γ int
-    EOrd   : { Ord T } → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
-    EEq    : { Eq T } → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
+    EOrd   : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
+    EEq    : Eq T  → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
     ELogic : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
     ENeg   : Num T → Exp Γ T → Exp Γ T
     ENot   : Exp Γ bool → Exp Γ bool
+    EStr   : String → Exp Γ void -- Hack to get string
 
 
   mutual
     data Stm : (T : Type) → (Γ : Ctx) → Set  where
-      SExp    : {X : Type} → Exp Γ X → Stm T Γ
-      SDecl   : (t : Type) → (id : Id) → id ∉ Δ → Stm T (Δ ∷ Γ)
+      SExp    : Exp Γ void → Stm T Γ
+      SDecl   : (t : Type) → (id : Id) → toSet t → id ∉ Δ → Stm T (Δ ∷ Γ)
       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ
       SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) → Stm T Γ
       SBlock  : Stms T ([] ∷ Γ) → Stm T Γ
@@ -134,7 +134,7 @@ module Typed (Σ : SymbolTab) where
       VReturn : Stm void Γ
 
     nextCtx : {Γ : Ctx} → Stm T Γ → Ctx
-    nextCtx {_} {(Δ ∷ Γ)} (SDecl t id x) = ((id , t) ∷ Δ) ∷ Γ
+    nextCtx {_} {(Δ ∷ Γ)} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
     nextCtx {_} {Γ}       _              = Γ
 
     data Stms (T : Type) (Γ : Ctx) : Set where

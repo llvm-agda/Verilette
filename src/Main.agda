@@ -27,5 +27,4 @@ main = do
       putStrLn "PARSER FAILED"
       putStrLn (stringFromList msg)
       exitFailure
-  putStrLn "PARSE SUCCESSFUL\n"
   catchError (typeCheck builtin result)

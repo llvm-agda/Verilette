@@ -7,6 +7,7 @@ open import Data.String
 --open import Agda.Builtin.String
 open import Agda.Primitive
 open import Agda.Builtin.Int   -- using (Int) 
+open import Agda.Builtin.Float renaming (Float to Double)
 open import Agda.Builtin.Equality
 
 open import Relation.Nullary.Decidable hiding (map)
@@ -42,7 +43,11 @@ error = inj₁
 
 
 builtin : SymbolTab
-builtin = (((ident "printInt") , ([] , int))) ∷ (((ident "printString") , ([] , int))) ∷ []
+builtin = (ident "printInt"    , (int  ∷ [] , void))
+        ∷ (ident "printString" , (void ∷ [] , void)) -- HACK for string
+        ∷ (ident "printDouble" , (doub ∷ [] , void)) 
+        ∷ (ident "readInt"     , (       [] , int )) 
+        ∷ (ident "readDouble"  , (       [] , doub)) ∷ [] 
 
 
 getSymEntry : TopDef → (Id × FunType)
@@ -111,15 +116,16 @@ unType (EArith p x - y) = eAdd (unType x) minus (unType y)
 unType (EArith p x * y) = eMul (unType x) times (unType y)
 unType (EArith p x / y) = eMul (unType x) div   (unType y)
 unType (EMod x y)       = eMul (unType x) mod   (unType y)
-unType (EOrd x < y )    = eRel (unType x) lTH   (unType y)
-unType (EOrd x <= y )   = eRel (unType x) lE    (unType y)
-unType (EOrd x > y )    = eRel (unType x) gTH   (unType y)
-unType (EOrd x >= y )   = eRel (unType x) gE    (unType y)
-unType (EEq x == y)     = eRel (unType x) eQU   (unType y)
-unType (EEq x != y)     = eRel (unType x) nE    (unType y)
+unType (EOrd _ x < y )  = eRel (unType x) lTH   (unType y)
+unType (EOrd _ x <= y ) = eRel (unType x) lE    (unType y)
+unType (EOrd _ x > y )  = eRel (unType x) gTH   (unType y)
+unType (EOrd _ x >= y ) = eRel (unType x) gE    (unType y)
+unType (EEq _ x == y)   = eRel (unType x) eQU   (unType y)
+unType (EEq _ x != y)   = eRel (unType x) nE    (unType y)
 unType (ELogic x && y)  = eAnd (unType x) (unType y)
 unType (ELogic x || y)  = eOr  (unType x) (unType y)
 unType (EAPP id xs p)   = eApp id (unTypeTList xs)
+unType (EStr s)         = eString s
 
 
 unValidStm  : TypedStm  Σ T Γ → Stm
@@ -133,7 +139,7 @@ unValidStm (SWhile x s)      = while (unType x) (unValidStms s)
 unValidStm (SBlock s)        = block (unValidStms s)
 unValidStm (SIfElse e s1 s2) = ifElse (unType e) (unValidStms s1) (unValidStms s2)
 unValidStm (SReturn x)       = ret (unType x)
-unValidStm (SDecl t id x)    = decl t id
+unValidStm (SDecl t id x _)  = decl t id
 unValidStm VReturn           = vRet
 
 
@@ -215,6 +221,9 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
   inferExp (eVar x) = do inScope t p ← lookupCtx x Γ 
                          pure (EId x p ::: t)
 
+  inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
+  ... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
+  ... | _                                   = error "Mismatch in printString"
   inferExp (eApp x es) with lookup x Σ 
   ... | nothing                  = error "Function not defined"
   ... | just (inList (ts , t) p) = do es' ::: ts' ← inferList es
@@ -241,7 +250,36 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
                                     addOp = λ where plus  → EArith nump e1' (+) e2' ::: t1
                                                     minus → EArith nump e1' (-) e2' ::: t1
                                 pure (addOp op)
-  inferExp (eRel e c e₁) = error "Fix later"
+  inferExp (eRel e1 lTH e2) = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifOrd t1
+                                 pure (EOrd p e1' (<) e2' ::: bool)
+  inferExp (eRel e1 lE e2)  = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifOrd t1
+                                 pure (EOrd p e1' (<=) e2' ::: bool)
+  inferExp (eRel e1 gTH e2) = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifOrd t1
+                                 pure (EOrd p e1' (>) e2' ::: bool)
+  inferExp (eRel e1 gE e2)  = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifOrd t1
+                                 pure (EOrd p e1' (>=) e2' ::: bool)
+  inferExp (eRel e1 eQU e2) = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifEq t1
+                                 pure (EEq p e1' (==) e2' ::: bool)
+  inferExp (eRel e1 nE e2)  = do e1' ::: t1 ← inferExp e1
+                                 e2' ::: t2 ← inferExp e2
+                                 refl ← t1 =?= t2
+                                 p ← ifEq t1
+                                 pure (EEq p e1' (!=) e2' ::: bool)
   inferExp (eAnd e1 e2)   = do e1' ::: t1 ← inferExp e1
                                e2' ::: t2 ← inferExp e2
                                refl ← t1 =?= bool
@@ -280,8 +318,7 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
                             pure (s' SCons ss')
 
 
-  checkStm Γ (sExp e)         = do e' ::: t ← inferExp Γ e
-                                   pure (SExp e')
+  checkStm Γ (sExp e)         = SExp <$> checkExp Γ void e
   checkStm Γ (ass id e)       = do inScope t p ← lookupCtx id Γ 
                                    e' ← checkExp Γ t e
                                    pure (SAss id e' p)
@@ -299,10 +336,16 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
                                                    dec → -
                                    pure (SAss id (EArith NumInt (EId id p) (e op) (EValue (pos 1))) p)
   checkStm Γ (decl t x) with Γ
-  ...                | []     = error "Empty context when declaring variables"
-  ...                | Δ ∷ Γ  = SDecl t x <$> x notIn Δ
+  ...           | []     = error "Empty context when declaring variables"
+  ...           | Δ ∷ Γ with t
+  ... | int  = SDecl int  x (pos 0) <$> x notIn Δ 
+  ... | doub = SDecl doub x 0.0     <$> x notIn Δ 
+  ... | bool = SDecl bool x false   <$> x notIn Δ 
+  ... | void = error "Cannot decl void"
+  ... | fun y ts = error "Cannot decl fun type"
 
-checkReturn  : (ss : TypedStms Σ T Γ) → TCM (returnStms Σ ss)
+
+checkReturn  : (ss : TypedStms Σ T Γ) → TCM   (returnStms Σ ss)
 checkReturn' : (s  : TypedStm  Σ T Γ) → Maybe (returnStm  Σ s)
 checkReturn SEmpty = error "Function does not return"
 checkReturn (s SCons ss) with checkReturn' s
@@ -317,24 +360,31 @@ checkReturn' (SIfElse x s1 s2) with checkReturn s1 , checkReturn s2
 ... | _                 = nothing
 checkReturn' (SReturn x) = just SReturn
 checkReturn' (VReturn)   = just VReturn
-checkReturn' (SExp x)       = nothing
-checkReturn' (SDecl t id x) = nothing
-checkReturn' (SAss id e x)  = nothing
-checkReturn' (SWhile x x₁)  = nothing
+checkReturn' (SExp x)         = nothing
+checkReturn' (SDecl t id x _) = nothing
+checkReturn' (SAss id e x)    = nothing
+checkReturn' (SWhile x x₁)    = nothing
+
 
 checkFun : (Σ : SymbolTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ ts t)
 checkFun Σ t ts (fnDef t' x as (block b)) = do
-  refl ← t =?= t'
-  let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
-  eqLists ts ts'
-  let params = zip ids ts
-  unique ← checkUnique params
-  ss' ← CheckStm.checkStms Σ t (params ∷ []) (deSugarList b) 
-  returns ← checkReturn ss'
-  pure (record { idents = ids
-               ; body   = ss'
-               ; unique = unique
-               ; return = returns })
+    refl ← t =?= t'
+    let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
+    eqLists ts ts'
+    let params = zip ids ts
+    unique  ← checkUnique params
+    ss'     ← addReturnVoid t <$> CheckStm.checkStms Σ t (params ∷ []) (deSugarList b)
+    returns ← checkReturn ss'
+    pure (record { idents = ids
+                 ; body   = ss'
+                 ; unique = unique
+                 ; return = returns })
+  where addReturnVoid : (T : Type) → TypedStms Σ T Γ → TypedStms Σ T Γ
+        addReturnVoid void SEmpty = VReturn SCons SEmpty
+        addReturnVoid void (VReturn SCons x) = VReturn SCons x
+        addReturnVoid void (s SCons x) = s SCons (addReturnVoid void x)
+        addReturnVoid _    x = x
+
 
 checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (TList (λ (_ , (ts , t)) → Def Σ' ts t) Σ)
 checkFuns Σ' [] [] = pure NIL
@@ -348,7 +398,7 @@ typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ = map getSymEntry defs
     inList ([] , int) p ← lookupTCM (ident "main") (b +++ Σ)
-      where _ → error "Found main but with wrong type"
+        where _ → error "Found main but with wrong type"
     unique ← checkUnique (b +++ Σ)
     defs' ← checkFuns (b +++ Σ) Σ defs
     pure (record { BuiltIn = b

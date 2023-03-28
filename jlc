@@ -2,4 +2,4 @@
 
 cp /dev/stdin test.jl
 
-/home/r/work/src/Main test.jl 1>&2 
+~/projekt/compiler/work/src/Main test.jl 1>&2 
