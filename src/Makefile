@@ -15,7 +15,12 @@ ALEX_OPTS  = --ghc
 
 # Default goal.
 
-all : Javalette/Test Main
+all : build
+	-alex ${ALEX_OPTS} Javalette/Lex.x
+	-happy ${HAPPY_OPTS} Javalette/Par.y
+	-rm Javalette/Main.agda
+	-agda -i Javalette/ --ghc --ghc-flag=-Wwarn Main.agda
+#	-cp Main ../jlc
 
 # Rules for building the parser.
 
@@ -45,7 +50,7 @@ clean :
 	-rm -rf MAlonzo
 
 distclean : clean
-	-rm -f Javalette/Abs.hs Javalette/Abs.hs.bak Javalette/ComposOp.hs Javalette/ComposOp.hs.bak Javalette/Doc.txt Javalette/Doc.txt.bak Javalette/ErrM.hs Javalette/ErrM.hs.bak Javalette/Layout.hs Javalette/Layout.hs.bak Javalette/Lex.x Javalette/Lex.x.bak Javalette/Par.y Javalette/Par.y.bak Javalette/Print.hs Javalette/Print.hs.bak Javalette/Skel.hs Javalette/Skel.hs.bak Javalette/Test.hs Javalette/Test.hs.bak Javalette/XML.hs Javalette/XML.hs.bak Javalette/AST.agda Javalette/AST.agda.bak Javalette/Parser.agda Javalette/Parser.agda.bak Javalette/IOLib.agda Javalette/IOLib.agda.bak Javalette/Main.agda Javalette/Main.agda.bak Javalette/Javalette.dtd Javalette/Javalette.dtd.bak Javalette/Test Javalette/Lex.hs Javalette/Par.hs Javalette/Par.info Javalette/ParData.hs Main Javalette/*~ Javalette/#*
+	-rm -f Javalette/Abs.hs Javalette/Abs.hs.bak Javalette/ComposOp.hs Javalette/ComposOp.hs.bak Javalette/Doc.txt Javalette/Doc.txt.bak Javalette/ErrM.hs Javalette/ErrM.hs.bak Javalette/Layout.hs Javalette/Layout.hs.bak Javalette/Lex.x Javalette/Lex.x.bak Javalette/Par.y Javalette/Par.y.bak Javalette/Print.hs Javalette/Print.hs.bak Javalette/Skel.hs Javalette/Skel.hs.bak Javalette/Test.hs Javalette/Test.hs.bak Javalette/XML.hs Javalette/XML.hs.bak Javalette/AST.agda Javalette/AST.agda.bak Javalette/Parser.agda Javalette/Parser.agda.bak Javalette/IOLib.agda Javalette/IOLib.agda.bak Javalette/Main.agda Javalette/Main.agda.bak Javalette/Javalette.dtd Javalette/Javalette.dtd.bak Javalette/Test Javalette/Lex.hs Javalette/Par.hs Javalette/Par.info Javalette/ParData.hs Main Javalette/*~ Javalette/#* jlc
 	-rmdir -p Javalette/
 
 # EOF

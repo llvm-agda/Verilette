@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cp /dev/stdin test.jl
+
+/home/r/work/src/Main test.jl 1>&2 
