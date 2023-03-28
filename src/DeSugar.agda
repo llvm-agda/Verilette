@@ -25,7 +25,8 @@ declr t [] = []
 declr t (noInit x ∷ xs) = decl t x ∷           declr t xs
 declr t (init x e ∷ xs) = decl t x ∷ ass x e ∷ declr t xs
 
-deSugar : Stmt → List Stm
+deSugar     :      Stmt → List Stm
+deSugarList : List Stmt → List Stm
 deSugar empty              = []
 deSugar (decl t is)        = declr t is
 deSugar (ass x e)          = ass x e                          ∷ []
@@ -38,9 +39,9 @@ deSugar (condElse e x y)   = ifElse e (deSugar x) (deSugar y) ∷ []
 deSugar (while e y)        = while e (deSugar y)              ∷ []
 deSugar (sExp e)           = sExp e                           ∷ []
 deSugar (bStmt (block ss)) = block (deSugarList ss)           ∷ []
-  where deSugarList : List Stmt → List Stm
-        deSugarList []       = []
-        deSugarList (x ∷ xs) = deSugar x ++ deSugarList xs
+
+deSugarList []       = []
+deSugarList (x ∷ xs) = deSugar x ++ deSugarList xs
 
 
 -- data _⇓_ : (s : Stmt) → (s' : Stmt) → Set where

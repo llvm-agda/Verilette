@@ -54,7 +54,7 @@ data _∈'_ (e : A) : List (List A) → Set where
 
 data Unique {A : Set} : (l : List (Id × A)) → Set where
   unique[]  : Unique []
-  uniqueSuc : ∀ {id xs x} → id ∉ xs  → Unique ((id , x) ∷ xs)
+  uniqueSuc : ∀ {id xs x} → id ∉ xs → Unique xs → Unique ((id , x) ∷ xs)
 
 --------------------------------------------------------------------------------
 -- Basic defs
@@ -149,13 +149,13 @@ module Typed (Σ : SymbolTab) where
     SBlock  : {ss : Stms T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
     SIFElse : ∀ {e} → {s1 s2 : Stms T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
   data returnStms where
-    SHead : {s : Stm T Γ} {ss : Stms T (nextCtx s)} → returnStm s → returnStms (s SCons ss)
+    SHead : {s : Stm T Γ} {ss : Stms T (nextCtx s)} → returnStm  s  → returnStms (s SCons ss)
+    SCon : {s : Stm T Γ} {ss : Stms T (nextCtx s)} → returnStms ss → returnStms (s SCons ss)
 
 
 open Typed
 
 record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
-  constructor Fun
   field
     idents : List Id
 
@@ -174,6 +174,6 @@ record Program : Set where
   Σ' = BuiltIn ++ Defs
 
   field
-    main    : (Id.ident "main" , ([] , int)) ∈ Σ'
-    LDefs   : TList (λ (id , (ts , t)) → Def Σ' ts t) Defs
-    unique  : Unique Σ'
+    hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
+    hasDefs    : TList (λ (id , (ts , t)) → Def Σ' ts t) Defs
+    uniqueDefs : Unique Σ'
