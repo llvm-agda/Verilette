@@ -142,15 +142,15 @@ module Typed (Σ : SymbolTab) where
       _SCons_ : (s : Stm T Γ) → Stms T (nextCtx s) → Stms T Γ
 
 
-  data returnStms : (ss : Stms T Γ) → Set
-  data returnStm  : (s  : Stm T Γ) → Set where
-    VReturn : returnStm (VReturn {Γ})
+  data returnStms {T Γ} : (ss : Stms T Γ) → Set
+  data returnStm    {Γ} : (s  : Stm  T Γ) → Set where
+    VReturn : returnStm VReturn
     SReturn : {e : Exp Γ T} → returnStm (SReturn e)
     SBlock  : {ss : Stms T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
     SIFElse : ∀ {e} → {s1 s2 : Stms T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
   data returnStms where
-    SHead : {s : Stm T Γ} {ss : Stms T (nextCtx s)} → returnStm  s  → returnStms (s SCons ss)
-    SCon : {s : Stm T Γ} {ss : Stms T (nextCtx s)} → returnStms ss → returnStms (s SCons ss)
+    SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
+    SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
 
 
 open Typed

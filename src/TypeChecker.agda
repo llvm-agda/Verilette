@@ -151,6 +151,12 @@ data WellTypedList (es : List Exp) (Σ : SymbolTab) (Γ : Ctx) : Set where
 
 pattern _:::_ e t = inferred t e refl
 
+data WellTypedPair (e1 e2 : Exp) (Σ : SymbolTab) (Γ : Ctx) : Set where
+  inferredP : (T : Type) → (eT1 eT2 : TypedExp Σ Γ T) → (unType eT1) ≡ e1
+                                                      → (unType eT2) ≡ e2 → WellTypedPair e1 e2 Σ Γ
+
+pattern infP e1 e2 t = inferredP t e1 e2 refl refl
+
 
 data InScope (Γ : Ctx) (x : Id) : Set where
   inScope : (t : Type) → (x , t) ∈' Γ → InScope Γ x
@@ -213,6 +219,12 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
                           es' ::: ts ← inferList es
                           pure ((e' :+ es') ::: (t ∷ ts)) 
 
+  inferPair : (e1 e2 : Exp) → TCM (WellTypedPair e1 e2 Σ Γ)
+  inferPair e1 e2 = do e1' ::: t1 ← inferExp e1
+                       e2' ::: t2 ← inferExp e2
+                       refl ← t1 =?= t2
+                       pure (inferredP t1 e1' e2' refl refl)
+
 
   inferExp (eLitFalse)  = pure (EValue false ::: bool)
   inferExp (eLitTrue)   = pure (EValue true  ::: bool)
@@ -230,66 +242,36 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
                                       refl ← eqLists ts ts'
                                       pure (EAPP x es' p ::: t)
 
-  inferExp (eMul e1 op e2) = do e1' ::: t1 ← inferExp e1
-                                e2' ::: t2 ← inferExp e2
-                                refl ← t1 =?= t2
-                                nump ← ifNum t1
-                                let mulOp : (op : MulOp) → TCM (WellTyped (eMul e1 op e2) Σ Γ)
-                                    mulOp = λ where
-                                                times → pure (EArith nump e1' (*) e2' ::: t1)
-                                                div   → pure (EArith nump e1' (/) e2' ::: t1)
-                                                mod   → do refl ← t1 =?= int
-                                                           pure (EMod e1' e2' ::: t1)
-                                mulOp op
+  inferExp (eMul e1 op e2) with inferPair e1 e2
+  ... | inj₁ s = error s
+  ... | inj₂ (infP e1' e2' t) with op
+  ...      | times = ifNum   t >>= λ  p    → pure (EArith p e1' (*) e2' ::: t)
+  ...      | div   = ifNum   t >>= λ  p    → pure (EArith p e1' (/) e2' ::: t)
+  ...      | mod   = int =?= t >>= λ {refl → pure (EMod     e1'     e2' ::: t)}
 
-  inferExp (eAdd e1 op e2) = do e1' ::: t1 ← inferExp e1
-                                e2' ::: t2 ← inferExp e2
-                                refl ← t1 =?= t2
-                                nump ← ifNum t1
-                                let addOp : (op : AddOp) → WellTyped (eAdd e1 op e2) Σ Γ
-                                    addOp = λ where plus  → EArith nump e1' (+) e2' ::: t1
-                                                    minus → EArith nump e1' (-) e2' ::: t1
-                                pure (addOp op)
-  inferExp (eRel e1 lTH e2) = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifOrd t1
-                                 pure (EOrd p e1' (<) e2' ::: bool)
-  inferExp (eRel e1 lE e2)  = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifOrd t1
-                                 pure (EOrd p e1' (<=) e2' ::: bool)
-  inferExp (eRel e1 gTH e2) = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifOrd t1
-                                 pure (EOrd p e1' (>) e2' ::: bool)
-  inferExp (eRel e1 gE e2)  = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifOrd t1
-                                 pure (EOrd p e1' (>=) e2' ::: bool)
-  inferExp (eRel e1 eQU e2) = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifEq t1
-                                 pure (EEq p e1' (==) e2' ::: bool)
-  inferExp (eRel e1 nE e2)  = do e1' ::: t1 ← inferExp e1
-                                 e2' ::: t2 ← inferExp e2
-                                 refl ← t1 =?= t2
-                                 p ← ifEq t1
-                                 pure (EEq p e1' (!=) e2' ::: bool)
-  inferExp (eAnd e1 e2)   = do e1' ::: t1 ← inferExp e1
-                               e2' ::: t2 ← inferExp e2
-                               refl ← t1 =?= bool
-                               refl ← t2 =?= bool
+  inferExp (eAdd e1 op e2) with inferPair e1 e2
+  ... | inj₁ s = error s
+  ... | inj₂ (infP e1' e2' t) with op
+  ...      | plus  = ifNum t >>= λ p → pure (EArith p e1' (+) e2' ::: t)
+  ...      | minus = ifNum t >>= λ p → pure (EArith p e1' (-) e2' ::: t)
+
+  inferExp (eRel e1 op e2) with inferPair e1 e2
+  ... | inj₁ s = error s
+  ... | inj₂ (infP e1' e2' t) with op
+  ...      | lTH = ifOrd t >>= λ p → pure (EOrd p e1' (<)  e2' ::: bool)
+  ...      | lE  = ifOrd t >>= λ p → pure (EOrd p e1' (<=) e2' ::: bool)
+  ...      | gTH = ifOrd t >>= λ p → pure (EOrd p e1' (>)  e2' ::: bool)
+  ...      | gE  = ifOrd t >>= λ p → pure (EOrd p e1' (>=) e2' ::: bool)
+  ...      | eQU = ifEq  t >>= λ p → pure (EEq  p e1' (==) e2' ::: bool)
+  ...      | nE  = ifEq  t >>= λ p → pure (EEq  p e1' (!=) e2' ::: bool)
+
+  inferExp (eAnd e1 e2)   = do infP e1' e2' bool ← inferPair e1 e2  
+                                    where _ → error "And applied to nonBool args"
                                pure (ELogic e1' && e2' ::: bool)
-  inferExp (eOr e1 e2)    = do e1' ::: t1 ← inferExp e1
-                               e2' ::: t2 ← inferExp e2
-                               refl ← t1 =?= bool
-                               refl ← t2 =?= bool
+  inferExp (eOr e1 e2)    = do infP e1' e2' bool ← inferPair e1 e2  
+                                    where _ → error "Or applied to nonBool args"
                                pure (ELogic e1' || e2' ::: bool)
+
   inferExp (eString x)   = error "Found string outside of call to printString"
   inferExp (neg e) = do e' ::: t ← inferExp e
                         p ← ifNum t
