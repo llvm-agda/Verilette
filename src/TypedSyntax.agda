@@ -1,12 +1,12 @@
 module TypedSyntax where
 
-open import Data.List
-open import Agda.Builtin.Equality
-open import Agda.Builtin.Bool
+open import Agda.Builtin.Equality using (_≡_)
+open import Agda.Builtin.Bool using (Bool)
 open import Agda.Builtin.Int   using (Int) 
 open import Agda.Builtin.Float using () renaming (Float to Double)
 
-open import Data.Product hiding (Σ; map; zip)
+open import Data.Product using (_×_; _,_)
+open import Data.List using (List; _∷_ ; [] ; zip ; _++_)
 
 open import Relation.Nullary.Negation.Core using (¬_)
 

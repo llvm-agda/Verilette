@@ -1,12 +1,9 @@
-{-# OPTIONS --allow-unsolved-metas #-} -- remove this later
-
 module TypeChecker where
 
+
 open import Agda.Builtin.Bool
-open import Data.String
---open import Agda.Builtin.String
 open import Agda.Primitive
-open import Agda.Builtin.Int   -- using (Int) 
+open import Agda.Builtin.Int -- using (Int ; pos) 
 open import Agda.Builtin.Float renaming (Float to Double)
 open import Agda.Builtin.Equality
 
@@ -17,11 +14,11 @@ open import Relation.Nullary.Negation.Core using (¬_)
 open import Effect.Monad.Error.Transformer
 open import Effect.Monad
 
+open import Data.String using (String; _≟_; _++_ )
 open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left String lzero renaming (monad to monadSum)
-open import Data.Sum.Base hiding (map)
+open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
 open import Data.List hiding (lookup) renaming (_++_ to _+++_)
-open import Data.List.Properties using (++-assoc)
 open import Data.Product using (_×_; _,_) 
 
 open import TypedSyntax renaming (Program to TypedProgram)
@@ -35,8 +32,8 @@ TCM = String ⊎_
 
 open RawMonad {{...}} hiding (zip)
 instance
-  monadTCM' : RawMonad TCM
-  monadTCM' = monadSum 
+  monadTCM : RawMonad TCM
+  monadTCM = monadSum 
 
 error : String → TCM A
 error = inj₁

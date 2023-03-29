@@ -180,3 +180,7 @@ setup.log
 
 # Local OPAM switch
 _opam/
+
+# Agda generated files
+*.agdai
+jlc #PATH dependent

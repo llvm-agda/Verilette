@@ -1,8 +1,6 @@
-
-
 module DeSugar where
 
-open import Data.List
+open import Data.List using (List; [] ; _∷_; _++_)
 
 open import Javalette.AST
 
