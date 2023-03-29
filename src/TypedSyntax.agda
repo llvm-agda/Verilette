@@ -110,7 +110,6 @@ data TList {A : Set} (e : A → Set) : (As : List A) → Set where
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
 module Typed (Σ : SymbolTab) where
-
   data Exp (Γ : Ctx) : Type → Set where
     EValue : toSet T  → Exp Γ T
     EId    : (id : Id) → (id , T) ∈' Γ → Exp Γ T
@@ -125,6 +124,9 @@ module Typed (Σ : SymbolTab) where
     EStr   : String → Exp Γ void -- Hack to get string
 
 
+module Valid (Σ : SymbolTab) where
+  open Typed Σ
+  
   mutual
     data Stm : (T : Type) → (Γ : Ctx) → Set  where
       SExp    : Exp Γ void → Stm T Γ
@@ -157,6 +159,7 @@ module Typed (Σ : SymbolTab) where
 
 
 open Typed
+open Valid
 
 record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
   field
