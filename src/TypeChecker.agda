@@ -1,4 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
 module TypeChecker where
 
 
@@ -17,10 +16,11 @@ open import Effect.Monad
 
 open import Data.String using (String; _≟_; _++_ )
 open import Data.Maybe.Base using (Maybe; nothing; just)
-open import Data.Sum.Effectful.Left String lzero renaming (monad to monadSum)
+open import Data.Sum.Effectful.Left renaming (monad to monadSum)
 open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
 open import Data.List using (List; _∷_ ; []; map; zip; unzipWith) renaming (_++_ to _+++_)
-open import Data.Product using (_×_; _,_)
+open import Data.List.Relation.Unary.All using (All); open All 
+open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 
 open import TypedSyntax renaming (Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
@@ -33,11 +33,15 @@ TCM = String ⊎_
 
 open RawMonad {{...}} hiding (zip)
 instance
-  monadTCM : RawMonad TCM
-  monadTCM = monadSum
+  monadTCM : {A : Set} → RawMonad (A ⊎_)
+  monadTCM {a} = monadSum a lzero
 
 error : String → TCM A
 error = inj₁
+
+checkAll : {P : A → Set} → ((a : A) → TCM (P a)) → (as : List A) → TCM (All P as)
+checkAll P []       = pure []
+checkAll P (x ∷ xs) = _∷_ <$> P x <*> checkAll P xs
 
 
 builtin : SymbolTab
@@ -63,16 +67,15 @@ showId (ident s) = s
 _eqId_  : (x y : Id) → (x ≢ y) ⊎ (x ≡ y)
 _eqId_  (ident x) (ident y) with x ≟ y
 ... | .true  because ofʸ refl = inj₂ refl
-... | .false because ofⁿ p    = inj₁ (help p)
-  where help : {x y : String} → ¬ (x ≡ y) → ¬ (ident x ≡ ident y)
-        help p₁ refl = p₁ refl
+... | .false because ofⁿ p    = inj₁ (λ {refl → p refl})
 
 _notIn_ : (x : Id) → (xs : List (Id × A)) → TCM (x ∉ xs)
-x notIn [] = pure zero
-x notIn ((y , t) ∷ xs) with x eqId y
-... | inj₂ _     = error "Variable already declared"
-... | inj₁ p     = do p' ← x notIn xs
-                      pure (suc p p')
+id notIn xs = checkAll (λ (id' , _) → notEq id id') xs
+  where notEq : (x y : Id) → TCM (x ≢ y)
+        notEq id id' with id eqId id'
+        ... | inj₁ x = pure x 
+        ... | inj₂ y = error (showId id ++ " was already in scope when delcaring new var")
+
 
 checkUnique : (xs : List (Id × A)) → TCM (Unique xs)
 checkUnique []              = pure unique[]
@@ -189,29 +192,14 @@ ifNum void   = error "Void is not numeric"
 ifNum (fun T ts) = error "Function is not Num type"
 
 
-eqLists : (as : List Type) → (bs : List Type) → TCM (as ≡ bs)
-_=?=_ : (a b : Type) → TCM (a ≡ b)
-bool       =?= bool       = pure refl
-int        =?= int        = pure refl
-doub       =?= doub       = pure refl
-void       =?= void       = pure refl
-(fun a as) =?= (fun b bs) = do refl ← a =?= b
-                               refl ← eqLists as bs
-                               pure refl
-a =?= b = error "Type mismatch"
-
-eqLists []       []       = pure refl
-eqLists (a ∷ as) (b ∷ bs) = do refl ← a =?= b
-                               refl ← eqLists as bs
-                               pure refl
-eqLists _ _               = error "Type mismatch in function"
 
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
-int =T= int  = inj₁ refl
-int =T= doub = inj₂ (λ ())
-int =T= bool = inj₂ (λ ())
-int =T= void = inj₂ (λ ())
-int =T= fun b ts = inj₂ (λ ())
+eqLists' : (as : List Type) → (bs : List Type) → (as ≡ bs ⊎ as ≢ bs)
+int  =T= int  = inj₁ refl
+int  =T= doub = inj₂ (λ ())
+int  =T= bool = inj₂ (λ ())
+int  =T= void = inj₂ (λ ())
+int  =T= fun b ts = inj₂ (λ ())
 doub =T= int = inj₂ (λ ())
 doub =T= doub = inj₁ refl
 doub =T= bool = inj₂ (λ ())
@@ -231,8 +219,34 @@ fun a ts =T= int = inj₂ (λ ())
 fun a ts =T= doub = inj₂ (λ ())
 fun a ts =T= bool = inj₂ (λ ())
 fun a ts =T= void = inj₂ (λ ())
-fun a ts =T= fun b ts₁ = {!!}
+fun a as =T= fun b bs with eqLists' (a ∷ as) (b ∷ bs)
+... | inj₁ refl = inj₁ refl
+... | inj₂ p    = inj₂ λ {refl → p refl}
 
+eqLists' []       []       = inj₁ refl
+eqLists' (a ∷ as) (b ∷ bs) with a =T= b
+... | inj₂ p = inj₂ λ {refl → p refl}
+... | inj₁ refl with eqLists' as bs
+... |    inj₁ refl = inj₁ refl
+... |    inj₂ p    = inj₂ (λ {refl → p refl})
+eqLists' [] (b ∷ bs) = inj₂ (λ ()) 
+eqLists' (a ∷ as) [] = inj₂ (λ ()) 
+
+_=?=_ : (a b : Type) → TCM (a ≡ b)
+a =?= b with a =T= b
+... | inj₁ x = pure x
+... | inj₂ y = error "Type mismatch"
+
+_=/=_ : (a b : Type) → TCM (a ≢ b)
+a =/= b with a =T= b
+... | inj₁ y = error "Type mismatch"
+... | inj₂ x = pure x
+
+
+eqLists  : (as : List Type) → (bs : List Type) → TCM (as ≡ bs)
+eqLists as bs with eqLists' as bs
+... | inj₁ x = pure x
+... | inj₂ y = error "Type mismatch when comparing lists"
 
 
 -- Typeching of expressions uses a given context, Γ
@@ -373,12 +387,13 @@ checkReturn' (SDecl t id x _) = nothing
 checkReturn' (SAss id e x)    = nothing
 checkReturn' (SWhile x x₁)    = nothing
 
-checkParam : (t : Type) → (ts : List Type) → TCM(t ∉t ts)
-checkParam t []       = pure zero
-checkParam t (x ∷ ts) with t =T= x
-... | inj₁ x₁  = error "void in parameters"
-... | inj₂ y   = do p ← checkParam t ts
-                    pure (suc y p)
+-- checkParam : (t : Type) → (ts : List Type) → TCM(t ∉t ts)
+-- checkParam t []       = pure zero
+-- checkParam t (x ∷ ts) with t =T= x
+-- ... | inj₁ x₁  = error "void in parameters"
+-- ... | inj₂ y   = do p ← checkParam t ts
+--                     pure (suc y p)
+
 checkFun : (Σ : SymbolTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ ts t)
 checkFun Σ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
@@ -388,7 +403,7 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
     unique  ← checkUnique params
     ss'     ← addReturnVoid t <$> CheckStm.checkStms Σ t (params ∷ []) (deSugarList b)
     returns ← checkReturn ss'
-    pparam  ← checkParam void ts
+    pparam  ← checkAll (_=/= void) ts 
     pure (record { idents    = ids
                  ; body      = ss'
                  ; voidparam = pparam

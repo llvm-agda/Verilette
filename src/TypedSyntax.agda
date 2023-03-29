@@ -1,12 +1,14 @@
 module TypedSyntax where
 
 open import Agda.Builtin.Equality using (_≡_)
-open import Agda.Builtin.Bool using (Bool)
+open import Agda.Builtin.Bool  using (Bool)
 open import Agda.Builtin.Int   using (Int)
 open import Agda.Builtin.Float using () renaming (Float to Double)
 
 open import Data.Product using (_×_; _,_)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_)
+open import Data.List.Relation.Unary.All using (All); open All
+open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Relation.Nullary.Negation.Core using (¬_)
 
@@ -24,7 +26,7 @@ variable
 data ⊥ : Set where
 
 _≢_ : ∀ {A} → A → A → Set
-x ≢ y  =  ¬ (x ≡ y)
+x ≢ y = ¬ (x ≡ y)
 
 
 FunType : Set
@@ -52,14 +54,8 @@ data _∈_ (e : A)  : List A → Set where
   zero : e ∈ e ∷ xs
   suc  : e ∈ xs → e ∈ x ∷ xs
 
-
-data _∉t_ (t : Type) : List Type → Set where
-  zero : t ∉t []
-  suc  : ∀ {t'} → t ≢ t' → t ∉t ts → t ∉t (t' ∷ xs)
-
-data _∉_ {A : Set} (id : Id) : List (Id × A) → Set where
-  zero : id ∉ []
-  suc  : ∀ {id' t} → id ≢ id' → id ∉ xs → id ∉ ((id' , t) ∷ xs)
+_∉_ : {A : Set} (id : Id) → List (Id × A) → Set 
+id ∉ xs = All (λ (id' , _) → id ≢ id') xs
 
 data _∈'_ (e : A) : List (List A) → Set where
   zero : e ∈  xs → e ∈' (xs ∷ ys)
@@ -170,7 +166,8 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
 
   field
     body      : Stms Σ T (params ∷ [])
-    voidparam : void ∉t ts
+    -- voidparam : void ∉t ts
+    voidparam : All (_≢ void) ts
     unique    : Unique params
     return    : returnStms Σ body
 
