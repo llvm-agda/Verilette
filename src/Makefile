@@ -20,7 +20,7 @@ all : build
 	-happy ${HAPPY_OPTS} Javalette/Par.y
 	-rm Javalette/Main.agda
 	-agda -i Javalette/ --ghc --ghc-flag=-Wwarn Main.agda
-#	-cp Main ../jlc
+	-cp Main ../jlc
 
 # Rules for building the parser.
 
