@@ -1,5 +1,0 @@
-#!/bin/sh
-
-cp /dev/stdin test.jl
-
-~/projekt/compiler/work/src/Main test.jl 1>&2 
