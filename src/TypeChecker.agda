@@ -1,9 +1,10 @@
+{-# OPTIONS --allow-unsolved-metas #-}
 module TypeChecker where
 
 
 open import Agda.Builtin.Bool
 open import Agda.Primitive
-open import Agda.Builtin.Int -- using (Int ; pos) 
+open import Agda.Builtin.Int -- using (Int ; pos)
 open import Agda.Builtin.Float renaming (Float to Double)
 open import Agda.Builtin.Equality
 
@@ -18,8 +19,8 @@ open import Data.String using (String; _≟_; _++_ )
 open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left String lzero renaming (monad to monadSum)
 open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
-open import Data.List hiding (lookup) renaming (_++_ to _+++_)
-open import Data.Product using (_×_; _,_) 
+open import Data.List using (List; _∷_ ; []; map; zip; unzipWith) renaming (_++_ to _+++_)
+open import Data.Product using (_×_; _,_)
 
 open import TypedSyntax renaming (Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
@@ -33,7 +34,7 @@ TCM = String ⊎_
 open RawMonad {{...}} hiding (zip)
 instance
   monadTCM : RawMonad TCM
-  monadTCM = monadSum 
+  monadTCM = monadSum
 
 error : String → TCM A
 error = inj₁
@@ -42,9 +43,9 @@ error = inj₁
 builtin : SymbolTab
 builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "printString" , (void ∷ [] , void)) -- HACK for string
-        ∷ (ident "printDouble" , (doub ∷ [] , void)) 
-        ∷ (ident "readInt"     , (       [] , int )) 
-        ∷ (ident "readDouble"  , (       [] , doub)) ∷ [] 
+        ∷ (ident "printDouble" , (doub ∷ [] , void))
+        ∷ (ident "readInt"     , (       [] , int ))
+        ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
 
 
 getSymEntry : TopDef → (Id × FunType)
@@ -162,7 +163,7 @@ lookupCtx : (x : Id) → (Γ : Ctx) → TCM (InScope Γ x)
 lookupCtx x []   = error ("Var " ++ showId x ++ " is not in scope")
 lookupCtx x (xs ∷ xss) with lookup x xs
 ... | just (inList t x₁) = pure (inScope t (zero x₁))
-... | nothing            = do inScope t p ← lookupCtx x xss 
+... | nothing            = do inScope t p ← lookupCtx x xss
                               pure (inScope t (suc p))
 
 
@@ -205,6 +206,34 @@ eqLists (a ∷ as) (b ∷ bs) = do refl ← a =?= b
                                pure refl
 eqLists _ _               = error "Type mismatch in function"
 
+_=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
+int =T= int  = inj₁ refl
+int =T= doub = inj₂ (λ ())
+int =T= bool = inj₂ (λ ())
+int =T= void = inj₂ (λ ())
+int =T= fun b ts = inj₂ (λ ())
+doub =T= int = inj₂ (λ ())
+doub =T= doub = inj₁ refl
+doub =T= bool = inj₂ (λ ())
+doub =T= void = inj₂ (λ ())
+doub =T= fun b ts = inj₂ (λ ())
+bool =T= int = inj₂ (λ ())
+bool =T= doub = inj₂ (λ ())
+bool =T= bool = inj₁ refl
+bool =T= void = inj₂ (λ ())
+bool =T= fun b ts = inj₂ (λ ())
+void =T= int = inj₂ (λ ())
+void =T= doub = inj₂ (λ ())
+void =T= bool = inj₂ (λ ())
+void =T= void = inj₁ refl
+void =T= fun b ts = inj₂ (λ ())
+fun a ts =T= int = inj₂ (λ ())
+fun a ts =T= doub = inj₂ (λ ())
+fun a ts =T= bool = inj₂ (λ ())
+fun a ts =T= void = inj₂ (λ ())
+fun a ts =T= fun b ts₁ = {!!}
+
+
 
 -- Typeching of expressions uses a given context, Γ
 module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
@@ -214,7 +243,7 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
   inferList [] = pure (inferred [] NIL refl)
   inferList (e ∷ es) = do e'  ::: t  ← inferExp e
                           es' ::: ts ← inferList es
-                          pure ((e' :+ es') ::: (t ∷ ts)) 
+                          pure ((e' :+ es') ::: (t ∷ ts))
 
   inferPair : (e1 e2 : Exp) → TCM (WellTypedPair e1 e2 Σ Γ)
   inferPair e1 e2 = do e1' ::: t1 ← inferExp e1
@@ -227,13 +256,13 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
   inferExp (eLitTrue)   = pure (EValue true  ::: bool)
   inferExp (eLitInt x)  = pure (EValue x     ::: int)
   inferExp (eLitDoub x) = pure (EValue x     ::: doub)
-  inferExp (eVar x) = do inScope t p ← lookupCtx x Γ 
+  inferExp (eVar x) = do inScope t p ← lookupCtx x Γ
                          pure (EId x p ::: t)
 
   inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
   ... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
   ... | _                                   = error "Mismatch in printString"
-  inferExp (eApp x es) with lookup x Σ 
+  inferExp (eApp x es) with lookup x Σ
   ... | nothing                  = error "Function not defined"
   ... | just (inList (ts , t) p) = do es' ::: ts' ← inferList es
                                       refl ← eqLists ts ts'
@@ -262,10 +291,10 @@ module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
   ...      | eQU = ifEq  t >>= λ p → pure (EEq  p e1' (==) e2' ::: bool)
   ...      | nE  = ifEq  t >>= λ p → pure (EEq  p e1' (!=) e2' ::: bool)
 
-  inferExp (eAnd e1 e2)   = do infP e1' e2' bool ← inferPair e1 e2  
+  inferExp (eAnd e1 e2)   = do infP e1' e2' bool ← inferPair e1 e2
                                     where _ → error "And applied to nonBool args"
                                pure (ELogic e1' && e2' ::: bool)
-  inferExp (eOr e1 e2)    = do infP e1' e2' bool ← inferPair e1 e2  
+  inferExp (eOr e1 e2)    = do infP e1' e2' bool ← inferPair e1 e2
                                     where _ → error "Or applied to nonBool args"
                                pure (ELogic e1' || e2' ::: bool)
 
@@ -298,7 +327,7 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
 
 
   checkStm Γ (sExp e)         = SExp <$> checkExp Γ void e
-  checkStm Γ (ass id e)       = do inScope t p ← lookupCtx id Γ 
+  checkStm Γ (ass id e)       = do inScope t p ← lookupCtx id Γ
                                    e' ← checkExp Γ t e
                                    pure (SAss id e' p)
   checkStm Γ (ret e)          = SReturn <$> checkExp Γ T e
@@ -307,8 +336,8 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
   checkStm Γ (while e ss)     = SWhile  <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) ss
   checkStm Γ (block ss)       = SBlock  <$> checkStms ([] ∷ Γ) ss
   checkStm Γ (ifElse e s1 s2) = SIfElse <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) s1
-                                                              <*> checkStms ([] ∷ Γ) s2 
-  checkStm Γ (incDec id op)   = do inScope t p ← lookupCtx id Γ 
+                                                              <*> checkStms ([] ∷ Γ) s2
+  checkStm Γ (incDec id op)   = do inScope t p ← lookupCtx id Γ
                                    refl ← t =?= int
                                    let e : incDecOp → ArithOp
                                        e = λ where inc → +
@@ -317,9 +346,9 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
   checkStm Γ (decl t x) with Γ
   ...           | []     = error "Empty context when declaring variables"
   ...           | Δ ∷ Γ with t
-  ... | int  = SDecl int  x (pos 0) <$> x notIn Δ 
-  ... | doub = SDecl doub x 0.0     <$> x notIn Δ 
-  ... | bool = SDecl bool x false   <$> x notIn Δ 
+  ... | int  = SDecl int  x (pos 0) <$> x notIn Δ
+  ... | doub = SDecl doub x 0.0     <$> x notIn Δ
+  ... | bool = SDecl bool x false   <$> x notIn Δ
   ... | void = error "Cannot decl void"
   ... | fun y ts = error "Cannot decl fun type"
 
@@ -344,7 +373,12 @@ checkReturn' (SDecl t id x _) = nothing
 checkReturn' (SAss id e x)    = nothing
 checkReturn' (SWhile x x₁)    = nothing
 
-
+checkParam : (t : Type) → (ts : List Type) → TCM(t ∉t ts)
+checkParam t []       = pure zero
+checkParam t (x ∷ ts) with t =T= x
+... | inj₁ x₁  = error "void in parameters"
+... | inj₂ y   = do p ← checkParam t ts
+                    pure (suc y p)
 checkFun : (Σ : SymbolTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ ts t)
 checkFun Σ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
@@ -354,10 +388,12 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
     unique  ← checkUnique params
     ss'     ← addReturnVoid t <$> CheckStm.checkStms Σ t (params ∷ []) (deSugarList b)
     returns ← checkReturn ss'
-    pure (record { idents = ids
-                 ; body   = ss'
-                 ; unique = unique
-                 ; return = returns })
+    pparam  ← checkParam void ts
+    pure (record { idents    = ids
+                 ; body      = ss'
+                 ; voidparam = pparam
+                 ; unique    = unique
+                 ; return    = returns })
   where addReturnVoid : (T : Type) → TypedStms Σ T Γ → TypedStms Σ T Γ
         addReturnVoid void SEmpty = VReturn SCons SEmpty
         addReturnVoid void (VReturn SCons x) = VReturn SCons x

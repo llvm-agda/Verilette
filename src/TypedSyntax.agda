@@ -2,7 +2,7 @@ module TypedSyntax where
 
 open import Agda.Builtin.Equality using (_≡_)
 open import Agda.Builtin.Bool using (Bool)
-open import Agda.Builtin.Int   using (Int) 
+open import Agda.Builtin.Int   using (Int)
 open import Agda.Builtin.Float using () renaming (Float to Double)
 
 open import Data.Product using (_×_; _,_)
@@ -16,8 +16,10 @@ open Type public
 variable
   A B : Set
   xs : List A
+
   ys : List (List A)
   x y : A
+
 
 data ⊥ : Set where
 
@@ -37,11 +39,23 @@ Block = List (Id × Type)
 Ctx : Set
 Ctx = List Block
 
+variable
+  T t : Type
+  ts  : List Type
+  Δ Δ₁ Δ₂ : Block
+  Γ Γ' : Ctx
+  Σ : SymbolTab
+
 
 infix 1 _∈_
 data _∈_ (e : A)  : List A → Set where
   zero : e ∈ e ∷ xs
   suc  : e ∈ xs → e ∈ x ∷ xs
+
+
+data _∉t_ (t : Type) : List Type → Set where
+  zero : t ∉t []
+  suc  : ∀ {t'} → t ≢ t' → t ∉t ts → t ∉t (t' ∷ xs)
 
 data _∉_ {A : Set} (id : Id) : List (Id × A) → Set where
   zero : id ∉ []
@@ -96,13 +110,6 @@ data TList {A : Set} (e : A → Set) : (As : List A) → Set where
   _:+_ : ∀ {A AS} → e A → TList e AS → TList e (A ∷ AS)
 
 
-
-variable
-  T t : Type
-  ts  : List Type
-  Δ Δ₁ Δ₂ : Block
-  Γ Γ' : Ctx
-  Σ : SymbolTab
 
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
@@ -162,9 +169,10 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
   params = zip idents ts
 
   field
-    body   : Stms Σ T (params ∷ [])
-    unique : Unique params
-    return : returnStms Σ body
+    body      : Stms Σ T (params ∷ [])
+    voidparam : void ∉t ts
+    unique    : Unique params
+    return    : returnStms Σ body
 
 
 record Program : Set where
