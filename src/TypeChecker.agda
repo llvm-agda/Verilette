@@ -9,7 +9,6 @@ open import Agda.Builtin.Equality
 
 open import Relation.Nullary.Negation.Core using (¬_)
 
-open import Effect.Monad.Error.Transformer
 open import Effect.Monad
 
 open import Data.String using (String; _≟_; _++_ )

@@ -85,9 +85,9 @@ inferExp (eLitDoub x) = pure (EValue x     ::: doub)
 inferExp (eVar x)     = do inScope t p ← lookupCtx x Γ
                            pure (EId x p ::: t)
 
--- inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
--- ... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
--- ... | _                                   = error "Mismatch in printString"
+inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
+... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
+... | _                                   = error "Mismatch in printString"
 inferExp (eApp x es) with lookup x Σ
 ... | nothing                  = error "Function not defined"
 ... | just (inList (ts , t) p) = do es' ::: ts' ← inferList es

@@ -5,8 +5,8 @@ open import Javalette.AST using (printProg)
 open import Javalette.Parser using (Err; parseProg)
 open import Data.String
 open import TypeChecker
+open import TypeCheckerMonad using (TCM)
 open import DeSugar
---open import Data.Sum.Effectful.Left String renaming (monad to monadSum)
 open import Data.Sum.Base
 open import Agda.Builtin.IO
 open import Agda.Builtin.String
@@ -36,7 +36,8 @@ postulate
 {-# COMPILE GHC hGetContents = Text.hGetContents #-}
 
 catchError : {A : Set} → TCM A → IO ⊤
-catchError (inj₁ x) = do hPutStrLn stderr "ERROR"
+catchError (inj₁ s) = do hPutStrLn stderr "ERROR"
+                         hPutStrLn stderr s
                          exitFailure
 catchError (inj₂ y) = hPutStrLn stderr "OK"
 
@@ -45,6 +46,7 @@ main : IO ⊤
 main = do
   contents ← hGetContents stdin
   Err.ok result ← return (parseProg contents) where
-    Err.bad _ → do hPutStrLn stderr "ERROR"
+    Err.bad s → do hPutStrLn stderr "ERROR"
+                   hPutStrLn stderr "Parse Failed"
                    exitFailure
   catchError (typeCheck builtin result)
