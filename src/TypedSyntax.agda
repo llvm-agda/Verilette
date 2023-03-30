@@ -139,8 +139,14 @@ module Valid (Σ : SymbolTab) where
       VReturn : Stm void Γ
 
     nextCtx : {Γ : Ctx} → Stm T Γ → Ctx
-    nextCtx {_} {(Δ ∷ Γ)} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
-    nextCtx {_} {Γ}       _              = Γ
+    nextCtx {_} {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
+    nextCtx {_} {Γ} (SExp x) = Γ
+    nextCtx {_} {Γ} (SAss id e x) = Γ
+    nextCtx {_} {Γ} (SWhile x x₁) = Γ
+    nextCtx {_} {Γ} (SBlock x) = Γ
+    nextCtx {_} {Γ} (SIfElse x x₁ x₂) = Γ
+    nextCtx {_} {Γ} (SReturn x) = Γ
+    nextCtx {_} {Γ} VReturn = Γ
 
     data Stms (T : Type) (Γ : Ctx) : Set where
       SEmpty  : Stms T Γ
@@ -169,7 +175,6 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
 
   field
     body      : Stms Σ T (params ∷ [])
-    -- voidparam : void ∉t ts
     voidparam : All (_≢ void) ts
     unique    : Unique params
     return    : returnStms Σ body
