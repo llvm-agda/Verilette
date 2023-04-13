@@ -8,6 +8,7 @@ open import Agda.Builtin.Float renaming (Float to Double)
 open import Agda.Builtin.Equality
 
 open import Relation.Nullary.Negation.Core using (¬_)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
 open import Effect.Monad
 
@@ -146,7 +147,7 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
   where open CheckStm Σ t
 
 
-checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (TList (λ (_ , (ts , t)) → Def Σ' ts t) Σ)
+checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList Σ' Σ)
 checkFuns Σ' [] [] = pure NIL
 checkFuns Σ' [] (x ∷ def) = error "More functions than in SyTab"
 checkFuns Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"

@@ -1,6 +1,5 @@
 module TypedSyntax where
 
-open import Agda.Builtin.Equality using (_≡_)
 open import Agda.Builtin.Bool  using (Bool)
 open import Agda.Builtin.Int   using (Int)
 open import Agda.Builtin.Float using () renaming (Float to Double)
@@ -10,7 +9,9 @@ open import Data.List using (List; _∷_ ; [] ; zip ; _++_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import Relation.Nullary.Negation.Core using (¬_)
+open import Data.Empty using (⊥)
+open import Relation.Nullary.Negation using (¬_)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
 open import Javalette.AST using (Type; String) renaming (Ident to Id)
 open Type public
@@ -21,12 +22,6 @@ variable
 
   ys : List (List A)
   x y : A
-
-
-data ⊥ : Set where
-
-_≢_ : ∀ {A} → A → A → Set
-x ≢ y = ¬ (x ≡ y)
 
 
 FunType : Set
@@ -50,16 +45,14 @@ variable
 
 
 infix 1 _∈_
-data _∈_ (e : A)  : List A → Set where
-  zero : e ∈ e ∷ xs
-  suc  : e ∈ xs → e ∈ x ∷ xs
+_∈_ : (e : A) → List A → Set
+e ∈ xs = Any (e ≡_) xs
 
 _∉_ : {A : Set} (id : Id) → List (Id × A) → Set 
 id ∉ xs = All (λ (id' , _) → id ≢ id') xs
 
-data _∈'_ (e : A) : List (List A) → Set where
-  zero : e ∈  xs → e ∈' (xs ∷ ys)
-  suc  : e ∈' ys → e ∈' (xs ∷ ys)
+_∈'_ : (e : A) → List (List A) → Set 
+e ∈' xs = Any (e ∈_) xs
 
 data Unique {A : Set} : (l : List (Id × A)) → Set where
   unique[]  : Unique []
@@ -99,12 +92,11 @@ data Num : (T : Type) → Set where
   NumInt : Num int
   NumDouble : Num doub
 
--- LIFTED TypeD List
+-- Lifted Typed List
 infixr 5 _:+_
 data TList {A : Set} (e : A → Set) : (As : List A) → Set where
   NIL  : TList e []
   _:+_ : ∀ {A AS} → e A → TList e AS → TList e (A ∷ AS)
-
 
 
 --------------------------------------------------------------------------------
@@ -180,6 +172,10 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
     return    : returnStms Σ body
 
 
+-- FunList contains a function parameterized by Σ' for each element in Σ.
+FunList : (Σ' Σ : SymbolTab) → Set
+FunList Σ' = TList (λ (_ , (ts , t)) → Def Σ' ts t) 
+
 record Program : Set where
   field
     BuiltIn : SymbolTab
@@ -188,5 +184,5 @@ record Program : Set where
 
   field
     hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
-    hasDefs    : TList (λ (id , (ts , t)) → Def Σ' ts t) Defs
+    hasDefs    : FunList Σ' Defs
     uniqueDefs : Unique Σ'

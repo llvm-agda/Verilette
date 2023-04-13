@@ -2,7 +2,7 @@
 
 module Util where
 
-open import Agda.Builtin.Equality using (refl; _≡_)
+open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Agda.Builtin.Bool
 open import Data.String using (String; _≟_; _++_ )
 
@@ -13,6 +13,8 @@ open import Data.Sum.Base public using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Product  public using (_×_ ; _,_)
 open import Data.List     public using (List; []; _∷_)
 open import Data.Maybe    public using (Maybe; just; nothing)
+
+open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import TypeCheckerMonad
 open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
@@ -36,9 +38,9 @@ data InScope (Γ : Ctx) (x : Id) : Set where
 lookup : (x : Id) → (xs : List (Id × A)) → Maybe (InList xs x)
 lookup id [] = nothing
 lookup id ((x' , a) ∷ xs) with x' eqId id
-... | inj₂ refl  = just (inList a zero)
+... | inj₂ refl  = just (inList a (here refl))
 ... | inj₁ _ with lookup id xs
-...         | just (inList t x₁) = just (inList t (suc x₁))
+...         | just (inList t x₁) = just (inList t (there x₁))
 ...         | nothing            = nothing
 
 lookupTCM : (x : Id) → (xs : List (Id × A)) → TCM (InList xs x)
@@ -50,9 +52,9 @@ lookupTCM x xs with lookup x xs
 lookupCtx : (x : Id) → (Γ : Ctx) → TCM (InScope Γ x)
 lookupCtx x []   = error ("Var " ++ showId x ++ " is not in scope")
 lookupCtx x (xs ∷ xss) with lookup x xs
-... | just (inList t x₁) = pure (inScope t (zero x₁))
+... | just (inList t x₁) = pure (inScope t (here x₁))
 ... | nothing            = do inScope t p ← lookupCtx x xss
-                              pure (inScope t (suc p))
+                              pure (inScope t (there p))
 
 
 
