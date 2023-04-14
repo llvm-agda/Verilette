@@ -9,7 +9,6 @@ open import Javalette.AST renaming (Expr to Exp)
 
 
 
-
 module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
 
 open Typed Σ renaming (Exp to TypedExp)
@@ -75,7 +74,7 @@ inferPair : (e1 e2 : Exp) → TCM (WellTypedPair e1 e2)
 inferPair e1 e2 = do e1' ::: t1 ← inferExp e1
                      e2' ::: t2 ← inferExp e2
                      refl ← t1 =?= t2
-                     pure (inferredP t1 e1' e2' refl refl)
+                     pure (infP e1' e2' t1)
 
 
 inferExp (eLitFalse)  = pure (EValue false ::: bool)
@@ -88,11 +87,10 @@ inferExp (eVar x)     = do inScope t p ← lookupCtx x Γ
 inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
 ... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
 ... | _                                   = error "Mismatch in printString"
-inferExp (eApp x es) with lookup x Σ
-... | nothing                  = error "Function not defined"
-... | just (inList (ts , t) p) = do es' ::: ts' ← inferList es
-                                    refl ← eqLists ts ts'
-                                    pure (EAPP x es' p ::: t)
+inferExp (eApp x es)   = do inList (ts , t) p ← lookupTCM x Σ
+                            es' ::: ts' ← inferList es
+                            refl ← eqLists ts ts'
+                            pure (EAPP x es' p ::: t)
 
 inferExp (eMul e1 op e2) with inferPair e1 e2
 ... | inj₁ s = error s

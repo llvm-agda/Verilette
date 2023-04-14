@@ -144,20 +144,19 @@ module Valid (Σ : SymbolTab) where
       SEmpty  : Stms T Γ
       _SCons_ : (s : Stm T Γ) → Stms T (nextCtx s) → Stms T Γ
 
-
-  data returnStms {T Γ} : (ss : Stms T Γ) → Set
-  data returnStm    {Γ} : (s  : Stm  T Γ) → Set where
-    VReturn : returnStm VReturn
-    SReturn : {e : Exp Γ T} → returnStm (SReturn e)
-    SBlock  : {ss : Stms T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
-    SIFElse : ∀ {e} → {s1 s2 : Stms T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
-  data returnStms where
-    SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
-    SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
-
-
 open Typed
 open Valid
+
+data returnStms {Σ T Γ} : (ss : Stms Σ T Γ) → Set
+data returnStm  {Σ   Γ} : (s  : Stm  Σ T Γ) → Set where
+  VReturn : returnStm VReturn
+  SReturn : {e : Exp Σ Γ T} → returnStm (SReturn e)
+  SBlock  : {ss : Stms Σ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
+  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
+data returnStms where
+  SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
+  SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
+
 
 record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
   field
@@ -169,7 +168,7 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
     body      : Stms Σ T (params ∷ [])
     voidparam : All (_≢ void) ts
     unique    : Unique params
-    return    : returnStms Σ body
+    return    : returnStms body
 
 
 -- FunList contains a function parameterized by Σ' for each element in Σ.

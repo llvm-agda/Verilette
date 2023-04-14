@@ -19,6 +19,7 @@ open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
 open import Data.List using (List; _∷_ ; []; map; zip; unzipWith) renaming (_++_ to _+++_)
 open import Data.List.Relation.Unary.All using (All); open All 
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Function using (case_of_) 
 
 open import TypedSyntax renaming (Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
@@ -88,10 +89,8 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
                                                               <*> checkStms ([] ∷ Γ) s2
   checkStm Γ (incDec id op)   = do inScope t p ← lookupCtx id Γ
                                    refl ← t =?= int
-                                   let e : incDecOp → ArithOp
-                                       e = λ where inc → +
-                                                   dec → -
-                                   pure (SAss id (EArith NumInt (EId id p) (e op) (EValue (pos 1))) p)
+                                   let op' = case op of λ {inc → + ; dec → (-)}
+                                   pure (SAss id (EArith NumInt (EId id p) op' (EValue (pos 1))) p)
   checkStm Γ (decl t x) with Γ
   ...           | []     = error "Empty context when declaring variables"
   ...           | Δ ∷ Γ with t
@@ -102,25 +101,21 @@ module CheckStm (Σ : SymbolTab) (T : Type) where
   ... | fun y ts = error "Cannot decl fun type"
 
 
-  checkReturn  : (ss : TypedStms Σ T Γ) → TCM   (returnStms Σ ss)
-  checkReturn' : (s  : TypedStm  Σ T Γ) → Maybe (returnStm  Σ s)
-  checkReturn SEmpty = error "Function does not return"
-  checkReturn (s SCons ss) with checkReturn' s
-  ... | just x  = pure (SHead x)
-  ... | nothing = SCon <$> checkReturn ss
-  
-  checkReturn' (SBlock ss) with checkReturn ss
-  ... | inj₂ x  = just (SBlock x)
-  ... | inj₁ _  = nothing
-  checkReturn' (SIfElse x s1 s2) with checkReturn s1 , checkReturn s2
-  ... | inj₂ x₁ , inj₂ x₂ = just (SIFElse x₁ x₂)
-  ... | _                 = nothing
-  checkReturn' (SReturn x) = just SReturn
-  checkReturn' (VReturn)   = just VReturn
-  checkReturn' (SExp x)         = nothing
-  checkReturn' (SDecl t id x _) = nothing
-  checkReturn' (SAss id e x)    = nothing
-  checkReturn' (SWhile x x₁)    = nothing
+checkReturn  : (ss : TypedStms Σ T Γ) → TCM (returnStms ss)
+checkReturn' : (s  : TypedStm  Σ T Γ) → TCM (returnStm  s)
+checkReturn SEmpty = error "Function does not return"
+checkReturn (s SCons ss) with checkReturn' s
+... | inj₂ x = pure (SHead x)
+... | inj₁ _ = SCon <$> checkReturn ss
+
+checkReturn' (SBlock ss)       = SBlock  <$> checkReturn ss
+checkReturn' (SIfElse x s1 s2) = SIfElse <$> checkReturn s1 <*> checkReturn s2
+checkReturn' (SReturn x)       = pure SReturn
+checkReturn' (VReturn)         = pure VReturn
+checkReturn' (SExp x)          = error "Exp does not return"
+checkReturn' (SDecl t id x _)  = error "Exp does not return"
+checkReturn' (SAss id e x)     = error "Exp does not return"
+checkReturn' (SWhile x x₁)     = error "Exp does not return"
 
 addReturnVoid : (T : Type) → TypedStms Σ T Γ → TypedStms Σ T Γ 
 addReturnVoid void SEmpty = VReturn SCons SEmpty
@@ -158,10 +153,11 @@ checkFuns Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  �
 typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ = map getSymEntry defs
-    inList ([] , int) p ← lookupTCM (ident "main") (b +++ Σ)
+    let Σ' = b +++ Σ
+    inList ([] , int) p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
-    unique ← checkUnique (b +++ Σ)
-    defs' ← checkFuns (b +++ Σ) Σ defs
+    unique ← checkUnique Σ'
+    defs' ← checkFuns Σ' Σ defs
     pure (record { BuiltIn = b
                  ; Defs    = Σ
                  ; hasMain    = p
