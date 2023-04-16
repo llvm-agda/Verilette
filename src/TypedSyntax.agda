@@ -48,10 +48,10 @@ infix 1 _∈_
 _∈_ : (e : A) → List A → Set
 e ∈ xs = Any (e ≡_) xs
 
-_∉_ : {A : Set} (id : Id) → List (Id × A) → Set 
+_∉_ : {A : Set} (id : Id) → List (Id × A) → Set
 id ∉ xs = All (λ (id' , _) → id ≢ id') xs
 
-_∈'_ : (e : A) → List (List A) → Set 
+_∈'_ : (e : A) → List (List A) → Set
 e ∈' xs = Any (e ∈_) xs
 
 data Unique {A : Set} : (l : List (Id × A)) → Set where
@@ -98,6 +98,10 @@ data TList {A : Set} (e : A → Set) : (As : List A) → Set where
   NIL  : TList e []
   _:+_ : ∀ {A AS} → e A → TList e AS → TList e (A ∷ AS)
 
+data Return (P : (Type → Set)) : Type -> Set where
+  vRet : Return P void
+  Ret : P t -> Return P T
+
 
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
@@ -116,43 +120,41 @@ module Typed (Σ : SymbolTab) where
     EStr   : String → Exp Γ void -- Hack to get string
 
 
-module Valid (Σ : SymbolTab) where
+module Valid (T : Type) (Σ : SymbolTab) where
   open Typed Σ
-  
+
   mutual
-    data Stm : (T : Type) → (Γ : Ctx) → Set  where
-      SExp    : Exp Γ void → Stm T Γ
-      SDecl   : (t : Type) → (id : Id) → toSet t → id ∉ Δ → Stm T (Δ ∷ Γ)
-      SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm T Γ
-      SWhile  : Exp Γ bool  → Stms T ([] ∷ Γ) → Stm T Γ
-      SBlock  : Stms T ([] ∷ Γ) → Stm T Γ
-      SIfElse : Exp Γ bool → Stms T ([] ∷ Γ) → Stms T ([] ∷ Γ) → Stm T Γ
-      SReturn : Exp Γ T  → Stm T Γ
-      VReturn : Stm void Γ
+    data Stm : (Γ : Ctx) → Set  where
+      SExp    : Exp Γ void → Stm Γ
+      SDecl   : (t : Type) → (id : Id) → toSet t → id ∉ Δ → Stm (Δ ∷ Γ)
+      SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
+      SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
+      SBlock  : Stms ([] ∷ Γ) → Stm Γ
+      SIfElse : Exp Γ bool → Stms ([] ∷ Γ) → Stms ([] ∷ Γ) → Stm Γ
+      SReturn : Return (Exp Γ) T → Stm Γ
 
-    nextCtx : {Γ : Ctx} → Stm T Γ → Ctx
-    nextCtx {_} {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
-    nextCtx {_} {Γ} (SExp x) = Γ
-    nextCtx {_} {Γ} (SAss id e x) = Γ
-    nextCtx {_} {Γ} (SWhile x x₁) = Γ
-    nextCtx {_} {Γ} (SBlock x) = Γ
-    nextCtx {_} {Γ} (SIfElse x x₁ x₂) = Γ
-    nextCtx {_} {Γ} (SReturn x) = Γ
-    nextCtx {_} {Γ} VReturn = Γ
+    nextCtx : {Γ : Ctx} → Stm Γ → Ctx
+    nextCtx {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
+    nextCtx {Γ} (SExp x) = Γ
+    nextCtx {Γ} (SAss id e x) = Γ
+    nextCtx {Γ} (SWhile x x₁) = Γ
+    nextCtx {Γ} (SBlock x) = Γ
+    nextCtx {Γ} (SIfElse x x₁ x₂) = Γ
+    nextCtx {Γ} (SReturn x) = Γ
 
-    data Stms (T : Type) (Γ : Ctx) : Set where
-      SEmpty  : Stms T Γ
-      _SCons_ : (s : Stm T Γ) → Stms T (nextCtx s) → Stms T Γ
+
+    data Stms (Γ : Ctx) : Set where
+      SEmpty  : Stms Γ
+      _SCons_ : (s : Stm Γ) → Stms (nextCtx s) → Stms Γ
 
 open Typed
 open Valid
 
-data returnStms {Σ T Γ} : (ss : Stms Σ T Γ) → Set
-data returnStm  {Σ   Γ} : (s  : Stm  Σ T Γ) → Set where
-  VReturn : returnStm VReturn
-  SReturn : {e : Exp Σ Γ T} → returnStm (SReturn e)
-  SBlock  : {ss : Stms Σ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
-  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
+data returnStms {T Σ Γ} : (ss : Stms T Σ Γ) → Set
+data returnStm  {  Σ Γ} : (s  : Stm  T Σ Γ) → Set where
+  SReturn : {e : Return (Exp Σ Γ) T} → returnStm (SReturn e)
+  SBlock  : {ss : Stms T Σ ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
+  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms T Σ ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
   SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
   SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
@@ -165,7 +167,7 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
   params = zip idents ts
 
   field
-    body      : Stms Σ T (params ∷ [])
+    body      : Stms T Σ (params ∷ [])
     voidparam : All (_≢ void) ts
     unique    : Unique params
     return    : returnStms body
@@ -173,7 +175,7 @@ record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
 
 -- FunList contains a function parameterized by Σ' for each element in Σ.
 FunList : (Σ' Σ : SymbolTab) → Set
-FunList Σ' = TList (λ (_ , (ts , t)) → Def Σ' ts t) 
+FunList Σ' = TList (λ (_ , (ts , t)) → Def Σ' ts t)
 
 record Program : Set where
   field
