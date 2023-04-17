@@ -18,10 +18,8 @@ open Type public
 
 variable
   A B : Set
-  xs : List A
-
-  ys : List (List A)
   x y : A
+  xs ys : List A
 
 
 FunType : Set
@@ -39,7 +37,7 @@ Ctx = List Block
 variable
   T t : Type
   ts  : List Type
-  Δ Δ₁ Δ₂ : Block
+  Δ Δ' Δ₁ Δ₂ : Block
   Γ Γ' : Ctx
   Σ : SymbolTab
 
