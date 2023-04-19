@@ -37,7 +37,7 @@ Ctx = List Block
 variable
   T t : Type
   ts  : List Type
-  Δ Δ' Δ₁ Δ₂ : Block
+  Δ Δ' Δ'' Δ₁ Δ₂ : Block
   Γ Γ' : Ctx
   Σ : SymbolTab
 

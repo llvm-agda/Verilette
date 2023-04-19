@@ -49,13 +49,13 @@ data WellTyped (e : Exp) : Set where
   inferred : (T : Type) → (eT : TypedExp Γ T) → (unType eT) ≡ e →  WellTyped e 
 
 data WellTypedList (es : List Exp) : Set where
-  inferred : (Ts : List Type) → (eTs : TList (TypedExp Γ) Ts) → unTypeTList eTs ≡ es →  WellTypedList es 
+  inferred : (Ts : List Type) → (eTs : TList (TypedExp Γ) Ts) → unTypeTList eTs ≡ es →  WellTypedList es
 
 pattern _:::_ e t = inferred t e refl
 
 data WellTypedPair (e1 e2 : Exp) : Set where
   inferredP : (T : Type) → (eT1 eT2 : TypedExp Γ T) → (unType eT1) ≡ e1
-                                                      → (unType eT2) ≡ e2 → WellTypedPair e1 e2 
+                                                    → (unType eT2) ≡ e2 → WellTypedPair e1 e2
 
 pattern infP e1 e2 t = inferredP t e1 e2 refl refl
 
