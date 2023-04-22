@@ -18,7 +18,7 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import TypeCheckerMonad
 open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
-open import TypedSyntax
+open import TypedSyntax Id
 
 
 data InList {A : Set} (γ : List (Id × A)) (x : Id) : Set where

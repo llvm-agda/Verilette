@@ -21,8 +21,8 @@ open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Function using (case_of_)
 
-open import TypedSyntax renaming (Program to TypedProgram)
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
+open import TypedSyntax Id renaming (Program to TypedProgram)
 open import DeSugar
 open import TypeCheckerMonad
 open import Util
@@ -158,6 +158,6 @@ typeCheck b (program defs) = do
     defs' ← checkFuns Σ' Σ defs
     pure (record { BuiltIn = b
                  ; Defs    = Σ
-                 ; hasMain    = p
+                 -- ; hasMain    = p
                  ; hasDefs    = defs'
                  ; uniqueDefs = unique })

@@ -1,15 +1,22 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst; proj₂ to snd)
 
+open import Data.Nat
+
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import Javalette.AST using (Type; String) renaming (Ident to Id)
+open import Javalette.AST using (Type; String); open Type
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
-open import TypedSyntax
+open import TypedSyntax ℕ
+
+open import Data.Empty using (⊥)
 
 module Code where
+
+Id : Set
+Id = ℕ
 
 
 -- Simplified subset
@@ -25,6 +32,10 @@ lemma⊆ {_} {x} {xs} {.(_ ∷ _)} (sub p) = sub (lemma⊆ p)
 trans⊆ : {as bs cs : List A} → as ⊆ bs → bs ⊆ cs → as ⊆ cs
 trans⊆ eq q = q
 trans⊆ (sub p) q = trans⊆ p (lemma⊆ q)
+
+[]⊆ : {as : List A} → [] ⊆ as
+[]⊆ {_} {[]} = eq
+[]⊆ {_} {x ∷ as} = sub []⊆
 
 
 Label : Set
@@ -43,7 +54,7 @@ data Operand (T : Type) (Δ : Block) : Set where
   var   : (id : Id) → (id , T) ∈ Δ → Operand T Δ 
 
 data Instruction (Δ : Block) : (T : Type) → Set where
-  arith : Num T → ArithOp → Operand T Δ₁ → {Δ₁ ⊆ Δ₂} → Operand T Δ₂ → {Δ₂ ⊆ Δ} → Instruction Δ T
+  arith : Num T → ArithOp → Operand T Δ₁ → {Δ₁ ⊆ Δ} → Operand T Δ₂ → {Δ₂ ⊆ Δ} → Instruction Δ T
   load  : Ptr T → Instruction Δ T
   store : Operand T Δ → Ptr T → Instruction Δ void
   -- TODO more operations
@@ -62,8 +73,12 @@ block'⊆ (id := x ∷ xs) = lemma⊆ (block'⊆ xs)
 uniqueBlock' : Block' Δ Δ' → Unique Δ → Unique Δ'
 uniqueBlock' [] p = p
 uniqueBlock' (x ∷ xs) p = uniqueBlock' xs p
-uniqueBlock' b@(_:=_∷_ id x {p'} xs) p = uniqueBlock' xs (uniqueSuc p' p)
+uniqueBlock' (_:=_∷_ id x {p'} xs) p = uniqueBlock' xs (uniqueSuc p' p)
 
+
+absurd : {id : Id} → Block' ((id , T) ∷ []) [] → ⊥
+absurd x with block'⊆ x
+... | ()
 
 module Body (T : Type) (ℓ : LabelTab) where
 
@@ -93,7 +108,7 @@ record FunDef (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
   field
     ℓ         : LabelTab
     body      : TList (λ (l , b) → BasicBlock T ℓ b) ℓ
-    hasEntry  : (Id.ident "entry" , params) ∈ ℓ
+    -- hasEntry  : (Id.ident "entry" , params) ∈ ℓ
     voidparam : All (_≢ void) ts
     uniqueParams   : Unique params
     uniqueLabelTab : Unique ℓ

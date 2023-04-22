@@ -1,4 +1,4 @@
-module TypedSyntax where
+module TypedSyntax (Id : Set) where
 
 open import Agda.Builtin.Bool  using (Bool)
 open import Agda.Builtin.Int   using (Int)
@@ -13,8 +13,8 @@ open import Data.Empty using (⊥)
 open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
-open import Javalette.AST using (Type; String) renaming (Ident to Id)
-open Type public
+open import Javalette.AST using (Type; String) 
+open Type 
 
 variable
   A B : Set
@@ -182,6 +182,6 @@ record Program : Set where
   Σ' = BuiltIn ++ Defs
 
   field
-    hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
+    -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     hasDefs    : FunList Σ' Defs
     uniqueDefs : Unique Σ'

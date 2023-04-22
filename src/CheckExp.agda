@@ -4,8 +4,8 @@ open import Agda.Builtin.Bool using (true; false)
 
 open import TypeCheckerMonad 
 open import Util 
-open import TypedSyntax
 open import Javalette.AST renaming (Expr to Exp)
+open import TypedSyntax Ident
 
 
 
