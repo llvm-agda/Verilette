@@ -36,10 +36,11 @@ Ctx = List Block
 
 variable
   T t : Type
-  ts  : List Type
+  Ts ts : List Type
   Δ Δ' Δ'' Δ₁ Δ₂ : Block
   Γ Γ' : Ctx
   Σ : SymbolTab
+  id : Id
 
 
 infix 1 _∈_

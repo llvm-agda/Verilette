@@ -1,5 +1,5 @@
 {-# OPTIONS --allow-unsolved-metas #-}
-open import Data.Product using (_×_; _,_) renaming (proj₁ to fst; proj₂ to snd)
+open import Data.Product using (_×_; _,_; ∃) renaming (proj₁ to fst; proj₂ to snd)
 
 open import Data.Nat
 
@@ -57,6 +57,7 @@ data Instruction (Δ : Block) : (T : Type) → Set where
   arith : Num T → ArithOp → Operand T Δ₁ → {Δ₁ ⊆ Δ} → Operand T Δ₂ → {Δ₂ ⊆ Δ} → Instruction Δ T
   load  : Ptr T → Instruction Δ T
   store : Operand T Δ → Ptr T → Instruction Δ void
+  call  : Ptr (fun T Ts) → TList (λ T → ∃ (λ Δ' → (Δ' ⊆ Δ) × Operand T Δ')) Ts → Instruction Δ T
   -- TODO more operations
   
 
