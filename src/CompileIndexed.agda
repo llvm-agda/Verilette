@@ -1,24 +1,31 @@
-open import Data.Product using (_×_; _,_; ∃) 
+open import Data.Product using (_×_; _,_; ∃) renaming (proj₁ to fst; proj₂ to snd)
 open import Data.List using (List; _∷_ ; [] ; zip ; map)
+open import Data.List.Relation.Unary.All using (All); open All
 
+open import Data.String using (String; _++_)
 open import Agda.Builtin.Int using (negsuc) 
-open import Data.Nat using (ℕ; suc)
-open import Function using (_$_)
+open import Data.Nat using (ℕ; suc; zero)
+open import Data.Nat.Show using (show)
+open import Function using (_$_; case_of_)
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
+open import Data.Unit.Polymorphic.Base using (⊤; tt)
 open import Effect.Monad.Indexed
+open import Effect.Monad.State.Indexed
+open import Effect.Monad.Identity using (Identity; mkIdentity) renaming (monad to IdMonad)
 
 open import Code
-open import TypedSyntax ℕ hiding (+; <) -- Using ℕ as Id
-open import Javalette.AST using (Type); open Type
+open import Javalette.AST using (Type; ident) renaming (Ident to Id); open Type
+open import TypedSyntax Id hiding (+; <) -- Using ℕ as Id
 
 module CompileIndexed where
 
 private
   variable
+    n : ℕ
     v  : List Type 
     v' : List Type 
     w  : List Type 
@@ -32,62 +39,24 @@ CtxList Γ = TList BlockList  Γ
 SymTab : SymbolTab → Set
 SymTab Σ = TList (λ (id , (ts , t)) → Ptr (fun t ts)) Σ
 
-length : List A → ℕ
-length [] = 0
-length (_ ∷ xs) = suc (length xs)
-
-
-toBlock : List Type → Block
-toBlock [] = []
-toBlock (T ∷ Ts) = (length Ts , T) ∷ toBlock Ts
-
-lengthToBlock : length v ≡ length (toBlock v)
-lengthToBlock {[]} = refl
-lengthToBlock {x ∷ v} = cong suc (lengthToBlock {v})
-
-lemmaToBlock : {Ts : List Type} → toBlock (T ∷ Ts) ≡ (length Ts , T) ∷ toBlock Ts
-lemmaToBlock = refl
-
-lemmaSuc : {n : ℕ} → suc n ≢ n
-lemmaSuc () 
-
--- Solve by proving that toBlock returns a sorted list?
-lemmaNextVar : (Ts : List Type) → length Ts ∉ toBlock Ts
-lemmaNextVar [] = []
-lemmaNextVar (x ∷ Ts) = (λ p → lemmaSuc p) ∷ {!!}
-
-uniqueToBlock : Unique (toBlock v)
-uniqueToBlock {[]} = unique[]
-uniqueToBlock {x ∷ Ts} = uniqueSuc (lemmaNextVar Ts) (uniqueToBlock {Ts})
-
-
-record CMState (v w : List Type) : Set where
+record CMState (Σ : SymbolTab) (Γ : Ctx) : Set where
   constructor cMS
   field 
-    block : Block' (toBlock v) (toBlock w)
+    varC tmpC labelC : ℕ
+    symTab : SymTab Σ
+    ctxList : CtxList Γ
+    block : Block'
 
-data CM (v w : List Type) (A : Set) : Set where
-  cM : (s : CMState v w) → (a : A) → CM v w A
+open CMState
 
-emptyState : CMState v v
-emptyState = cMS []
+CM : SymbolTab → (Γ Γ' : Ctx) → Set → Set
+CM Σ = IStateT (CMState Σ) Identity
 
-_>:>_ : Block' Δ Δ'  → Block' Δ' Δ'' → Block' Δ Δ''
-[] >:> xs = xs
-(x ∷ xs) >:> ys = x ∷ (xs >:> ys)
-(_:=_∷_ id x {p} xs) >:> ys = _:=_∷_ id x {p} (xs >:> ys)
-
-_>:>'_ : CMState v w → CMState w v' → CMState v v'
-cMS block >:>' cMS block₁ = cMS (block >:> block₁)
-
-open RawIMonad {{...}}
+open RawIMonadState {{...}}
 
 instance
-  CM'Monad : RawIMonad CM
-  RawIMonad.return CM'Monad x = cM emptyState x
-  (CM'Monad RawIMonad.>>= cM s a) f with f a
-  ... | cM s₁ a₁ = cM (s >:>' s₁) a₁
-
+  CMMonad : {Σ : SymbolTab} → RawIMonadState (CMState Σ) (CM Σ)
+  CMMonad {Σ} = StateTIMonadState (CMState Σ) IdMonad
 
 negOne : Num T → toSet T
 negOne NumInt    = negsuc 0 -- -1
@@ -101,70 +70,115 @@ lookupPtr : CtxList Γ → (id , t) ∈' Γ → Ptr t
 lookupPtr (x :+ xs) (here p)  = lookupPtr' x p
 lookupPtr (x :+ xs) (there s) = lookupPtr xs s
 
+getPtr : (id , T) ∈' Γ → CM Σ Γ Γ (Ptr T)
+getPtr p = do ctx ← ctxList <$> get
+              pure (lookupPtr ctx p)
+
+
 -- not sure if functions are Ptr
 lookupFun : SymTab Σ → (id , Ts , T) ∈ Σ → Ptr (fun T Ts)
 lookupFun (x :+ _)  (here refl) = x
 lookupFun (_ :+ xs) (there p)   = lookupFun xs p
 
 
-emit : Instruction (toBlock v) T → CM v (T ∷ v) (Operand T (toBlock (T ∷ v)))
-emit {v = v}x = let id = length v
-                in cM (cMS (_:=_∷_ id x {lemmaNextVar v} []))
-                      (var id (here refl))
 
-with⊆ : CM v w A → CM v w ((toBlock v ⊆ toBlock w) × A)
-with⊆ (cM (cMS s) a) = cM (cMS s) (block'⊆ s , a)
+emit : Instruction T → CM Σ Γ Γ ⊤
+emit x = do modify (λ s → record s {block = x ∷ block s })
+            pure tt
 
+emitTmp : Instruction T → CM Σ Γ Γ (Operand T)
+emitTmp x = do tmp ← tmpC <$> get 
+               let operand = var (ident $ "t" ++ show tmp)
+               modify λ s → record s {tmpC = suc (tmpC s)
+                                     ;block = operand := x ∷ block s}
+               pure operand
+
+allocate : (T : Type) → CM Σ Γ Γ (Ptr T)
+allocate t = do v ← varC <$> get
+                let p = ident $ "v" ++ show v
+                modify λ s → record s { block = var p := alloc t ∷ block s
+                                      ; varC = suc (varC s)}
+                pure (ptr p)
+
+addVar : (T : Type) → (id : Id) → Ptr T → CM Σ (Δ ∷ Γ) (((id , T) ∷ Δ) ∷ Γ) ⊤
+addVar T id x (cMS varC₁ tmpC₁ labelC₁ σ (δ :+ γ) block₁) =
+  let s = cMS varC₁ tmpC₁ labelC₁ σ ((x :+ δ) :+ γ) block₁ in
+  mkIdentity (tt , s)
+
+inNewBlock : CM Σ ([] ∷ Γ) (Γ' ) A → CM Σ Γ Γ A
+inNewBlock = {!!}
+
+newLabel : CM Σ Γ Γ Label
+newLabel = do l ← labelC <$> get 
+              modify λ s → record s {labelC = suc (labelC s)}
+              pure $ ident ("L" ++ show l)
+
+putLabel : Label → CM Σ Γ Γ ⊤
+putLabel l = do modify λ s → record s {block = label l ∷ block s}
+                pure tt
 
 module _ where
-  open Typed
-  
-  newList : (e : Exp Σ Γ T) → List Type → List Type
-  foldNewList : TList (Exp Σ Γ) Ts → List Type → List Type
-  newList (EValue x) v = v
-  newList (EId {T} id x) v = T ∷ v
-  newList (EArith {T} p x _ y) v = T    ∷ newList y (newList x v)
-  newList (EMod         x   y) v = int  ∷ newList y (newList x v)
-  newList (EOrd   {T} P x _ y) v = T    ∷ newList y (newList x v)
-  newList (EEq    {T} P x _ y) v = T    ∷ newList y (newList x v)
-  newList (ELogic       x _ y) v = bool ∷ newList y (newList x v)
-  newList (ENeg {T} x e) v = T ∷ newList e v
-  newList (ENot e) v = bool ∷ newList e v
-  newList (EStr x) v = void ∷ v -- Not sure
-  newList (EAPP {_} {T} id es x₁) v = T ∷ foldNewList es v
+  open Typed 
 
-  foldNewList NIL v = v
-  foldNewList (x :+ es) v = newList x (foldNewList es v)
-  
-
-module _ (σ : SymTab Σ) (γ : CtxList Γ) where
-  open Typed Σ 
-
-  compileExp : {v : List Type} → (e : Exp Γ T) → CM v (newList e v) (Operand T (toBlock (newList e v)))
+  compileExp : (e : Exp Σ Γ T) → CM Σ Γ Γ (Operand T) 
   compileExp (EValue x) = pure (const x)
-  compileExp (EId id x) = emit (load (lookupPtr γ x))
+  compileExp (EId id x) = do p ← getPtr x
+                             emitTmp (load p)
+  compileExp (EAPP id es p) = do {!!}
   compileExp (EArith p x op y) = do x' ← compileExp x
-                                    py , y' ← with⊆ $ compileExp y
-                                    emit (arith p op x' {py}  y' {eq})
+                                    y' ← compileExp y
+                                    emitTmp (arith p op x' y')
   compileExp (EMod e e₁) = {!!}
   compileExp (EOrd x e x₁ e₁) = {!!}
   compileExp (EEq x e x₁ e₁) = {!!}
-  compileExp (ELogic e x e₁) = {!!}
-  compileExp (ENeg p e) = do e' ← compileExp e
-                             emit (arith p * e' {eq} (const (negOne p)) {eq})
+  compileExp (ELogic x op y) = do mid ← newLabel
+                                  end ← newLabel
+                                  x' ← compileExp x
+                                  res ← allocate bool
+                                  emit (store x' res)
+                                  case op of λ { && → emit (branch x' mid end)
+                                               ; || → emit (branch x' end mid)}
+
+                                  putLabel mid
+                                  y' ← compileExp y
+                                  emit (store y' res)
+                                  emit (jmp end)
+
+                                  putLabel end
+                                  emitTmp (load res)
+  compileExp (ENeg x e) = {!!}
   compileExp (ENot e) = {!!}
   compileExp (EStr x) = {!!}
-  compileExp (EAPP id es p) = do os ← foldr es
-                                 emit (call (lookupFun σ p) os)
-    where
-      mapTList : {v w : A → Set} → (∀ {x} → v x → w x) → TList v xs → TList w xs
-      mapTList f NIL = NIL
-      mapTList f (x :+ xs) = f x :+ mapTList f xs
 
-      foldr : (es : TList (Exp Γ) Ts) → CM v (foldNewList es v) (TList (λ T → ∃ (λ Δ' → (Δ' ⊆ toBlock (foldNewList es v)) × Operand T Δ')) Ts)
-      foldr NIL       = pure NIL
-      foldr (e :+ es) = do es' ← foldr es
-                           p , e' ← with⊆ (compileExp e)
-                           let es'' = mapTList (λ (_ , p' , e') → (_ , trans⊆ p' p  , e')) es'
-                           pure ((_ , eq , e') :+ es'')
   
+module _ (T : Type) (σ : SymTab Σ) where
+  open Valid T Σ 
+
+  compileStm  : (s  : Stm  Γ) → CM Σ Γ (nextCtx s)  ⊤
+  compileStms : (ss : Stms Γ) → CM Σ Γ (lastCtx ss) ⊤
+  compileStm (SExp x) = do compileExp x
+                           pure tt
+  compileStm (SDecl t id x x₁) = do v ← allocate t
+                                    emit (store (const x) v)
+                                    addVar t id v
+                                    pure tt
+  compileStm (SAss id e x) = do p ← getPtr x
+                                e' ← compileExp e
+                                emit (store e' p) 
+  compileStm (SWhile x ss) = do preCond ← newLabel
+                                loop ← newLabel
+                                end ← newLabel
+                                putLabel preCond
+                                x' ← compileExp x
+                                emit (branch x' loop end)
+                                putLabel loop
+                                inNewBlock $ compileStms ss
+                                emit (jmp preCond) 
+                                putLabel end 
+  compileStm (SBlock x) = {!!}
+  compileStm (SIfElse x x₁ x₂) = {!!}
+  compileStm (SReturn x) = {!!}
+
+  compileStms SEmpty = pure tt
+  compileStms (s SCons ss) = do compileStm  s
+                                compileStms ss

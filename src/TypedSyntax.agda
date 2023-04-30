@@ -141,10 +141,13 @@ module Valid (T : Type) (Σ : SymbolTab) where
     nextCtx {Γ} (SIfElse x x₁ x₂) = Γ
     nextCtx {Γ} (SReturn x) = Γ
 
-
     data Stms (Γ : Ctx) : Set where
       SEmpty  : Stms Γ
       _SCons_ : (s : Stm Γ) → Stms (nextCtx s) → Stms Γ
+
+    lastCtx : Stms Γ → Ctx
+    lastCtx {Γ} SEmpty = Γ
+    lastCtx {Γ} (s SCons x) = lastCtx x
 
 open Typed
 open Valid
