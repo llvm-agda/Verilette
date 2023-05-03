@@ -34,6 +34,9 @@ Block = List (Id × Type)
 Ctx : Set
 Ctx = List Block
 
+TList : (A → Set) → List A → Set
+TList = All
+
 variable
   T t : Type
   Ts ts : List Type
@@ -91,15 +94,9 @@ data Num : (T : Type) → Set where
   NumInt : Num int
   NumDouble : Num doub
 
--- Lifted Typed List
-infixr 5 _:+_
-data TList {A : Set} (e : A → Set) : (As : List A) → Set where
-  NIL  : TList e []
-  _:+_ : ∀ {A AS} → e A → TList e AS → TList e (A ∷ AS)
-
 data Return (P : (Type → Set)) : Type -> Set where
   vRet : Return P void
-  Ret : P t -> Return P T
+  Ret : P t -> Return P t
 
 
 --------------------------------------------------------------------------------

@@ -7,7 +7,7 @@ open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import Javalette.AST using (Type; String) renaming (Ident to Id); open Type
+open import Javalette.AST using (Type; String; RelOp) renaming (Ident to Id); open Type
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
 open import TypedSyntax Id
 
@@ -24,20 +24,25 @@ data Ptr (T : Type) : Set where
 
 
 data Operand (T : Type) : Set where
-  const : toSet T → Operand T
-  var   : (id : Id) → Operand T
+  const  : toSet T → Operand T
+  local  : (id : Id) → Operand T
+  global : (id : Id) → Operand T
 
 data Instruction : (T : Type) → Set where
   arith  : Num T → ArithOp → (x y : Operand T) → Instruction T
+  cmp    : RelOp → (x y : Operand T) → Instruction bool
+  srem   : (x y : Operand int) → Instruction int -- signed modulo
   alloc  : (T : Type) → Instruction T
   load   : Ptr T → Instruction T
   store  : Operand T → Ptr T → Instruction void
   call   : Ptr (fun T Ts) → TList Operand Ts → Instruction T
+
+  -- Terminators
   jmp    : (l : Label) → Instruction void
   branch : Operand bool → (t f : Label) → Instruction void
   ret    : Return Operand T → Instruction T
+
   label  : Label → Instruction void
-  -- TODO more operations
 
 data Block' : Set where
   [] : Block'

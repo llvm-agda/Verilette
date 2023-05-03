@@ -1,5 +1,6 @@
 
 open import Agda.Builtin.Equality using (refl; _≡_)
+open import Data.List.Relation.Unary.All using (All; reduce); open All
 open import Agda.Builtin.Bool using (true; false)
 
 open import TypeCheckerMonad 
@@ -16,8 +17,8 @@ open Typed Σ renaming (Exp to TypedExp)
 
 unType      :        TypedExp Γ  T  → Exp
 unTypeTList : TList (TypedExp Γ) ts → List Exp
-unTypeTList NIL       = []
-unTypeTList (x :+ xs) = unType x ∷ unTypeTList xs
+unTypeTList []       = []
+unTypeTList (x ∷ xs) = unType x ∷ unTypeTList xs
 
 unType (EValue {T} x) with T
 ...    | int            = eLitInt x
@@ -65,10 +66,10 @@ pattern infP e1 e2 t = inferredP t e1 e2 refl refl
 
 inferExp  : (e  :      Exp) → TCM (WellTyped     e )
 inferList : (es : List Exp) → TCM (WellTypedList es)
-inferList [] = pure (inferred [] NIL refl)
+inferList [] = pure (inferred [] [] refl)
 inferList (e ∷ es) = do e'  ::: t  ← inferExp e
                         es' ::: ts ← inferList es
-                        pure ((e' :+ es') ::: (t ∷ ts))
+                        pure ((e' ∷ es') ::: (t ∷ ts))
 
 inferPair : (e1 e2 : Exp) → TCM (WellTypedPair e1 e2)
 inferPair e1 e2 = do e1' ::: t1 ← inferExp e1
@@ -85,7 +86,7 @@ inferExp (eVar x)     = do inScope t p ← lookupCtx x Γ
                            pure (EId x p ::: t)
 
 inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
-... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s :+ NIL) p ::: void)
+... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s ∷ []) p ::: void)
 ... | _                                   = error "Mismatch in printString"
 inferExp (eApp x es)   = do inList (ts , t) p ← lookupTCM x Σ
                             es' ::: ts' ← inferList es

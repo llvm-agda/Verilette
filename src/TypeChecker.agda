@@ -141,12 +141,12 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
 
 
 checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList Σ' Σ)
-checkFuns Σ' [] [] = pure NIL
+checkFuns Σ' [] [] = pure []
 checkFuns Σ' [] (x ∷ def) = error "More functions than in SyTab"
 checkFuns Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
 checkFuns Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  Σ' t ts def
                                                      defs' ← checkFuns Σ' Σ    defs
-                                                     pure (def' :+ defs')
+                                                     pure (def' ∷ defs')
 
 typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
