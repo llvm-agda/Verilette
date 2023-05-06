@@ -1,13 +1,13 @@
 open import Data.Product using (_×_; _,_; ∃; map₂) renaming (proj₁ to fst; proj₂ to snd)
-open import Data.List using (List; _∷_ ; []; length; map)
+open import Data.List using (List; _∷_ ; []; map)
 open import Data.List.Relation.Unary.All using (All); open All
 
-open import Data.String using (String; fromList; unwords; intersperse; _++_)
+open import Data.String using (String; fromList; unwords; unlines; intersperse; _++_; length)
 open import Agda.Builtin.Int using (negsuc) renaming (primShowInteger to showℤ)
 open import Data.Float using () renaming (show to showℝ)
 import Data.Bool as Bool
 open import Data.Nat using (ℕ; suc; zero)
-open import Data.Nat.Show using (show)
+open import Data.Nat.Show using () renaming (show to showℕ)
 open import Function using (_$_; _∘_; case_of_)
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
@@ -101,18 +101,20 @@ emit : Instruction T → CM Γ Γ ⊤
 emit x = modify (λ s → record s {block = x ∷ block s })
 
 emitTmp : Instruction T → CM Γ Γ (Operand T)
-emitTmp x = do tmp ← tmpC <$> get 
-               let operand = local (ident $ "t" ++ show tmp)
-               modify λ s → record s { block = operand := x ∷ block s
-                                     ; tmpC = suc (tmpC s)}
-               pure operand
+emitTmp {void} x = do modify λ s → record s {block = x ∷ block s}
+                      pure (local (ident "This_void_tmp_should_never_be_used"))
+emitTmp {T} x = do tmp ← tmpC <$> get
+                   let operand = local (ident $ "t" ++ showℕ tmp)
+                   modify λ s → record s { block = operand := x ∷ block s
+                                         ; tmpC = suc (tmpC s)}
+                   pure operand
 
 allocate : (T : Type) → CM Γ Γ (Ptr T)
 allocate t = do v ← varC <$> get
-                let p = ident $ "v" ++ show v
+                let p = ident $ "v" ++ showℕ v
                 modify λ s → record s { block = local p := alloc t ∷ block s
                                       ; varC = suc (varC s)}
-                pure (ptr p)
+                pure (local p)
 
 addVar : (T : Type) → (id ∉ Δ) → CM (Δ ∷ Γ) (((id , T) ∷ Δ) ∷ Γ) (Ptr T)
 addVar t p = do p ← allocate t
@@ -131,7 +133,7 @@ inNewBlock m (cMS g v t l ctx b) =
 newLabel : CM Γ Γ Label
 newLabel = do l ← labelC <$> get 
               modify λ s → record s {labelC = suc (labelC s)}
-              pure $ ident ("L" ++ show l)
+              pure $ ident ("L" ++ showℕ l)
 
 putLabel : Label → CM Γ Γ ⊤
 putLabel l = modify λ s → record s {block = label l ∷ block s}
@@ -161,28 +163,29 @@ module _ (σ : SymTab Σ) where
   compileExp (EEq    p x op y) = emitTmp =<< cmp     op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { == → RelOp.eQU ; != → RelOp.nE }
 
-  compileExp (ELogic x op y) = do cur ← curentLabel
-                                  mid ← newLabel
+  compileExp (ELogic x op y) = do mid ← newLabel
                                   end ← newLabel
 
                                   x' ← compileExp x
+                                  postx ← curentLabel
                                   case op of λ { && → emit (branch x' mid end)
                                                ; || → emit (branch x' end mid)}
 
                                   putLabel mid
                                   y' ← compileExp y
+                                  posty ← curentLabel
                                   emit (jmp end)
 
                                   putLabel end
-                                  emitTmp (phi ((x' , cur) ∷ (y' , mid) ∷ []))
+                                  emitTmp (phi ((x' , postx) ∷ (y' , posty) ∷ []))
 
   compileExp (ENeg p e) = do e' ← compileExp e
                              emitTmp (arith p ArithOp.* e' (const (negOne p)))
-  compileExp (ENot e) = {!!}
-  compileExp (EStr x) = do c ← globalC ∘ globalS <$> get
-                           let id = ident ("str" ++ show c)
-                           gS c strs ← globalS <$> get
-                           modify λ s → record s {globalS = gS (suc c) ((id , fromList x) ∷ strs)}
+  compileExp (ENot e) = emitTmp =<< cmp RelOp.eQU (const Bool.false) <$> compileExp e
+  compileExp (EStr x) = do gS c strs ← globalS <$> get
+                           let id = ident ("str" ++ showℕ c)
+                           let gs = gS (suc c) ((id , fromList x) ∷ strs)
+                           modify λ s → record s {globalS = gs}
                            pure (global id)
   compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
     where mapCompileExp : TList (Exp Σ Γ) Ts → CM Γ Γ (TList Operand Ts)
@@ -199,6 +202,7 @@ module _ (σ : SymTab Σ) where
                                 loop    ← newLabel
                                 end     ← newLabel
 
+                                emit (jmp preCond)
                                 putLabel preCond
                                 x' ← compileExp x
                                 emit (branch x' loop end)
@@ -256,14 +260,14 @@ compileProgram p = let defs , globState = compileFuns (mkSymTab uniqueDefs) hasD
                    in record
                      { BuiltIn = BuiltIn
                      ; Defs = Defs
-                     ; strings = strings globState
+                     ; Strings = strings globState
                      ; hasDefs = defs
                      ; uniqueDefs = uniqueDefs
                      }
   where open Program p
         mkSymTab : Unique Σ → SymTab Σ
         mkSymTab [] = []
-        mkSymTab (_∷_ {id} _ xs) = (ptr id) ∷ mkSymTab xs
+        mkSymTab (_∷_ {id} _ xs) = (global id) ∷ mkSymTab xs
 
 
 
@@ -287,7 +291,7 @@ module _ where
   ... | doub = showℝ x
   ... | bool with x
   ... | Bool.false = "false"
-  ... | Bool.true = "true"
+  ... | Bool.true  = "true"
   pOperand {_} (local  (ident x)) = "%" ++ x
   pOperand {_} (global (ident x)) = "@" ++ x
 
@@ -295,13 +299,14 @@ module _ where
   pPairOperand x y = pOperand x ++ " , " ++ pOperand y
 
   pPtr' : Ptr T → String
-  pPtr' (ptr (ident x)) = x
+  pPtr' (local  (ident x)) = "%" ++ x
+  pPtr' (global (ident x)) = "@" ++ x
 
   pPtr : Ptr T → String
   pPtr {T} x = pType T ++ "* " ++ pPtr' x 
 
   pLabel : Label → String
-  pLabel (ident x) = ", label " ++ x
+  pLabel (ident x) = "label %" ++ x
 
   -- Helper functions for pInst
   private
@@ -318,33 +323,57 @@ module _ where
     pCmp (fun _ _) = λ _ → "error: can not compare function"
 
     pCall : All Operand Ts → String
-    pCall (_∷_ {t} y (x ∷ xs)) = pType t ++ pOperand y ++ ", " ++ pCall (x ∷ xs)
-    pCall (_∷_ {t} x xs) = pType t ++ pOperand x
+    pCall (_∷_ {t} y (x ∷ xs)) = pType t ++ " " ++ pOperand y ++ ", " ++ pCall (x ∷ xs)
+    pCall (_∷_ {t} x [])       = pType t ++ " " ++ pOperand x
     pCall [] = ""
 
     pPhi : List (Operand T × Id) → List String
-    pPhi = map λ {(x , ident l) → "[ " ++ pOperand x ++ ", " ++ l ++ " ]"}
+    pPhi = map λ {(x , ident l) → "[ " ++ pOperand x ++ ", %" ++ l ++ " ]"}
 
-    format : List String → String
-    format xs = "    " ++ unwords xs
 
   pInst : Instruction T → String
-  pInst {T} x with pT ← pType T | x 
-  ... | arith p op x y = format $ pArith p op ∷ pT ∷ pPairOperand x y ∷ []
-  ... | cmp op x y     = format $ pCmp T op   ∷ pT ∷ pPairOperand x y ∷ []
-  ... | srem x y       = format $ "srem"      ∷ pT ∷ pPairOperand x y ∷ []
-  ... | alloc t   = format $ "alloca" ∷ pT ∷ []
-  ... | load x    = format $ "load"   ∷ pPtr x ∷ []
-  ... | store o p = format $ "store"  ∷ pT ∷ pOperand o ∷ "," ∷ pPtr p ∷ []
-  ... | call x xs = format $ "call"   ∷ pT ∷ ( pPtr' x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
-  ... | phi x     = format $ "phi"    ∷ pT ∷ intersperse ", " (pPhi x) ∷ []
-  ... | jmp (ident x) = format $ "br" ∷ "label" ∷ x ∷ [] 
-  ... | branch x t f =  format $ "br" ∷ pT ∷ pOperand x ∷ pLabel t ∷ pLabel f ∷ []
-  ... | ret vRet    = format $ "ret"  ∷ "void" ∷ [] 
-  ... | ret (Ret x) = format $ "ret"  ∷ pT ∷ pOperand x ∷ []
-  ... | label (ident x) = x ++ ":" 
+  pInst {T} x with pT ← pType T | x
+  ... | arith p op x y = unwords $ pArith p op ∷ pT      ∷ pPairOperand x y ∷ []
+  ... | cmp {t} op x y = unwords $ pCmp t op   ∷ pType t ∷ pPairOperand x y ∷ []
+  ... | srem x y       = unwords $ "srem"      ∷ pT      ∷ pPairOperand x y ∷ []
+  ... | alloc t   = unwords $ "alloca" ∷ pT ∷ []
+  ... | load x    = unwords $ "load"   ∷ pT ∷ "," ∷ pPtr x ∷ []
+  ... | store o p = unwords $ "store"  ∷ pT ∷ pOperand o ∷ "," ∷ pPtr p ∷ []
+  ... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
+  ... | call x xs = unwords $ "call"   ∷ pT ∷ ( pPtr' x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
+  ... | phi x     = unwords $ "phi"    ∷ pT ∷ intersperse ", " (pPhi x) ∷ []
+  ... | jmp x = unwords $ "br" ∷ pLabel x ∷ []
+  ... | branch x t f =  unwords $ "br" ∷ "i1" ∷ pOperand x ∷ "," ∷ pLabel t ∷ "," ∷ pLabel f ∷ []
+  ... | ret vRet    = unwords $ "ret"  ∷ "void" ∷ []
+  ... | ret (Ret x) = unwords $ "ret"  ∷ pT ∷ pOperand x ∷ []
+  ... | label (ident x) = "error: lables should have been handled in pCode" -- x ++ ":"
 
+  -- Should maybe reverse the order of code when compiling
   pCode : Code → String
-  pCode [] = "\n"
-  pCode (x ∷ xs)      =                        pInst x ++ "\n" ++ pCode xs
-  pCode (o := x ∷ xs) = pOperand o ++ " = " ++ pInst x ++ "\n" ++ pCode xs
+  pCode [] = ""
+  pCode (label (ident l) ∷ xs) = pCode xs ++ l ++ ": \n"
+  pCode (x ∷ xs)      = pCode xs ++ "  " ++                        pInst x ++ "\n"
+  pCode (o := x ∷ xs) = pCode xs ++ "  " ++ pOperand o ++ " = " ++ pInst x ++ "\n"
+
+  pFun : Id → FunDef Σ Ts T → String
+  pFun {T = T} (ident id) def =
+       let header = unwords $ "define" ∷ pType T ∷ ("@" ++ id) ∷ pParams ∷ "{" ∷ []
+       in intersperse "\n" $ header ∷ pCode body ∷ "}" ∷ []
+    where open FunDef def
+          pParams = "(" ++ intersperse ", " (map (λ {(ident i , t) → pType t ++ " %" ++ i}) params) ++ ")"
+
+  pProgram : llvmProgram → String
+  pProgram p = intersperse "\n\n" $ unlines pBuiltIn ∷ unlines pStrings ∷ pDefs hasDefs
+    where open llvmProgram p
+          pStrings : List String
+          pStrings = map (λ {(ident i , s) →
+                         "@" ++ i ++ " = internal constant [ " ++ showℕ (length s) ++ " x i8 ] c\"" ++ s ++ "\""}) Strings
+          pBuiltIn : List String
+          pBuiltIn = map (λ
+                       { (ident "printString" , _) → "declare void @printString(i8*)" -- since we use a "hack" for printString
+                       ; (ident i , ts , t) →
+                              "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) BuiltIn
+
+          pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
+          pDefs [] = []
+          pDefs (_∷_ {i , _} x xs) = pFun i x ∷ pDefs xs

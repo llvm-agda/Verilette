@@ -6,6 +6,7 @@ open import Javalette.Parser using (Err; parseProg)
 open import Data.String
 open import TypeChecker
 open import TypeCheckerMonad using (TCM)
+open import CompileIndexed using (compileProgram; pProgram)
 open import DeSugar
 open import Data.Sum.Base
 open import Agda.Builtin.IO
@@ -35,13 +36,6 @@ postulate
 {-# COMPILE GHC hGetLine     = Text.hGetLine #-}
 {-# COMPILE GHC hGetContents = Text.hGetContents #-}
 
-catchError : {A : Set} → TCM A → IO ⊤
-catchError (inj₁ s) = do hPutStrLn stderr "ERROR"
-                         hPutStrLn stderr s
-                         exitFailure
-catchError (inj₂ y) = hPutStrLn stderr "OK"
-
-
 main : IO ⊤
 main = do
   contents ← hGetContents stdin
@@ -49,4 +43,10 @@ main = do
     Err.bad s → do hPutStrLn stderr "ERROR"
                    hPutStrLn stderr "Parse Failed"
                    exitFailure
-  catchError (typeCheck builtin result)
+  -- catchError (typeCheck builtin result)
+  inj₂ y ← return (typeCheck builtin result) where
+    inj₁ s → do hPutStrLn stderr "ERROR"
+                hPutStrLn stderr s
+                exitFailure
+  hPutStrLn stdout (pProgram (compileProgram y))
+  hPutStrLn stderr "OK"

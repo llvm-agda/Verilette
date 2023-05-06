@@ -21,7 +21,8 @@ Label = Id
 
 
 data Ptr (T : Type) : Set where
-  ptr : Id → Ptr T 
+  local  : Id → Ptr T 
+  global : Id → Ptr T
 
 
 data Operand (T : Type) : Set where
@@ -35,7 +36,7 @@ data Instruction : (T : Type) → Set where
   srem   : (x y : Operand int) → Instruction int -- signed modulo
   alloc  : (T : Type) → Instruction T
   load   : Ptr T → Instruction T
-  store  : Operand T → Ptr T → Instruction void
+  store  : Operand T → Ptr T → Instruction T
   call   : Ptr (fun T Ts) → TList Operand Ts → Instruction T
   phi    : List (Operand T × Label) → Instruction T
 
@@ -76,6 +77,6 @@ record llvmProgram : Set where
 
   field
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
-    strings    : List (Id × String)
-    hasDefs    : TList (λ (_ , ts , t) → FunDef Σ' ts t) Defs
+    Strings    : List (Id × String)
+    hasDefs    : FunList' Σ' Defs
     uniqueDefs : Unique Σ'
