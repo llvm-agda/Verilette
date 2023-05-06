@@ -56,8 +56,8 @@ id notIn xs = checkAll (λ (id' , _) → notEq id id') xs
 
 
 checkUnique : (xs : List (Id × A)) → TCM (Unique xs)
-checkUnique []              = pure unique[]
-checkUnique ((id , x) ∷ xs) = uniqueSuc <$> id notIn xs <*> checkUnique xs
+checkUnique []              = pure []
+checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 
 
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)

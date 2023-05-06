@@ -57,8 +57,8 @@ _∈'_ : (e : A) → List (List A) → Set
 e ∈' xs = Any (e ∈_) xs
 
 data Unique {A : Set} : (l : List (Id × A)) → Set where
-  unique[]  : Unique []
-  uniqueSuc : ∀ {id xs x} → id ∉ xs → Unique xs → Unique ((id , x) ∷ xs)
+  []  : Unique []
+  _∷_ : ∀ {id xs x} → id ∉ xs → Unique xs → Unique ((id , x) ∷ xs)
 
 --------------------------------------------------------------------------------
 -- Basic defs
@@ -159,15 +159,15 @@ data returnStms where
   SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
 
 
-record Def (Σ : SymbolTab) (ts : List Type) (T : Type) : Set  where
+record Def (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
     idents : List Id
 
-  params = zip idents ts
+  params = zip idents Ts
 
   field
     body      : Stms T Σ (params ∷ [])
-    voidparam : All (_≢ void) ts
+    voidparam : All (_≢ void) Ts
     unique    : Unique params
     return    : returnStms body
 
