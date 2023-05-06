@@ -46,10 +46,10 @@ data Instruction : (T : Type) → Set where
 
   label  : Label → Instruction void
 
-data Block' : Set where
-  [] : Block'
-  _∷_ : Instruction T → Block' → Block'
-  _:=_∷_ : Operand T → Instruction T → Block' → Block'
+data Code : Set where
+  [] : Code
+  _∷_    :             Instruction T → Code → Code
+  _:=_∷_ : Operand T → Instruction T → Code → Code
   
 
 record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
@@ -59,7 +59,7 @@ record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   params = zip idents Ts
 
   field
-    body      : Block'
+    body      : Code
     -- hasEntry  : (Id.ident "entry" , params) ∈ ℓ
     voidparam : All (_≢ void) Ts
     uniqueParams   : Unique params
