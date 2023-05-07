@@ -113,7 +113,7 @@ module Typed (Σ : SymbolTab) where
     ELogic : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
     ENeg   : Num T → Exp Γ T → Exp Γ T
     ENot   : Exp Γ bool → Exp Γ bool
-    EStr   : String → Exp Γ void -- Hack to get string
+    EPrintStr : String → Exp Γ void
 
 
 module Valid (T : Type) (Σ : SymbolTab) where

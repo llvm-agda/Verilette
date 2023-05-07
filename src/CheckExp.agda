@@ -43,7 +43,7 @@ unType (EEq _ x != y)   = eRel (unType x) nE    (unType y)
 unType (ELogic x && y)  = eAnd (unType x) (unType y)
 unType (ELogic x || y)  = eOr  (unType x) (unType y)
 unType (EAPP id xs p)   = eApp id (unTypeTList xs)
-unType (EStr s)         = eString s
+unType (EPrintStr s)    = eApp (ident "printString") (eString s ∷ [])
 
 
 data WellTyped (e : Exp) : Set where
@@ -86,7 +86,7 @@ inferExp (eVar x)     = do inScope t p ← lookupCtx x Γ
                            pure (EId x p ::: t)
 
 inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
-... | just (inList (void ∷ [] , void)  p) = pure (EAPP (ident "printString") ( EStr s ∷ []) p ::: void)
+... | just (inList (void ∷ [] , void)  p) = pure (EPrintStr s ::: void)
 ... | _                                   = error "Mismatch in printString"
 inferExp (eApp x es)   = do inList (ts , t) p ← lookupTCM x Σ
                             es' ::: ts' ← inferList es

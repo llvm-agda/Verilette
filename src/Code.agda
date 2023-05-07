@@ -4,13 +4,17 @@ open import Data.Product using (_×_; _,_; ∃) renaming (proj₁ to fst; proj�
 open import Data.Nat
 open import Data.String using (String)
 
+open import Agda.Builtin.Bool  using (Bool)
+open import Agda.Builtin.Int   using (Int)
+open import Agda.Builtin.Float using (Float)
+
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import Javalette.AST using (Type; RelOp) renaming (Ident to Id); open Type
+open import Javalette.AST using (RelOp) renaming (Ident to Id)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
-open import TypedSyntax Id
+open import TypedSyntax Id hiding (toSet; T; Ts; FunType; SymbolTab; *)
 
 open import Data.Empty using (⊥)
 
@@ -19,10 +23,37 @@ module Code where
 Label : Set
 Label = Id
 
+data Type : Set where
+  lint : ℕ → Type  -- i n -llvm-> i(n+1)
+  float : Type
+  void : Type
+  _* : Type → Type
+  fun : Type → List Type → Type
 
-data Ptr (T : Type) : Set where
-  local  : Id → Ptr T 
-  global : Id → Ptr T
+variable
+  T  : Type
+  Ts : List Type
+
+toSet : Type → Set
+toSet (lint zero)    = Bool
+toSet (lint (suc _)) = Int
+toSet float  = Float
+toSet _ = ⊥
+
+
+data FirstClass : Type → Set where
+  lint : ∀ n → FirstClass (lint n)
+  float : FirstClass float
+
+pattern i1  = lint 0
+pattern i8  = lint 7
+pattern i32 = lint 31
+
+FunType : Set
+FunType = ((List Type) × Type)
+
+SymbolTab : Set
+SymbolTab = List (Id × FunType)
 
 
 data Operand (T : Type) : Set where
@@ -31,19 +62,21 @@ data Operand (T : Type) : Set where
   global : (id : Id) → Operand T
 
 data Instruction : (T : Type) → Set where
-  arith  : Num T → ArithOp → (x y : Operand T) → Instruction T
-  cmp    : RelOp → (x y : Operand T) → Instruction bool
-  srem   : (x y : Operand int) → Instruction int -- signed modulo
+  arith  : FirstClass T → ArithOp → (x y : Operand T) → Instruction T
+  cmp    : FirstClass T → RelOp → (x y : Operand T) → Instruction i1
+  srem   : (x y : Operand i32) → Instruction i32 -- signed modulo
   alloc  : (T : Type) → Instruction T
-  load   : Ptr T → Instruction T
-  store  : Operand T → Ptr T → Instruction T
-  call   : Ptr (fun T Ts) → TList Operand Ts → Instruction T
+  load   : Operand (T *) → Instruction T
+  store  : Operand T → Operand (T *) → Instruction T
+  call   : Operand (fun T Ts) → TList Operand Ts → Instruction T
+  getStr : (len : ℕ) → Id → Instruction (i8 *) -- getElemPtr specified to Strings
   phi    : List (Operand T × Label) → Instruction T
 
   -- Terminators
   jmp    : (l : Label) → Instruction void
-  branch : Operand bool → (t f : Label) → Instruction void
-  ret    : Return Operand T → Instruction T
+  branch : Operand i1 → (t f : Label) → Instruction void
+  vret   : Instruction void
+  ret    : Operand T → Instruction T
 
   label  : Label → Instruction void
 
@@ -62,8 +95,8 @@ record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
     body      : Code
     -- hasEntry  : (Id.ident "entry" , params) ∈ ℓ
-    voidparam : All (_≢ void) Ts
-    uniqueParams   : Unique params
+    -- voidparam : All (_≢ void) Ts
+    -- uniqueParams   : Unique params
 
 
 FunList' : (Σ' Σ : SymbolTab) → Set
@@ -79,4 +112,4 @@ record llvmProgram : Set where
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     Strings    : List (Id × String)
     hasDefs    : FunList' Σ' Defs
-    uniqueDefs : Unique Σ'
+    -- uniqueDefs : Unique Σ'
