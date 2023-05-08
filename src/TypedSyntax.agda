@@ -1,8 +1,8 @@
 module TypedSyntax (Id : Set) where
 
-open import Agda.Builtin.Bool  using (Bool)
-open import Agda.Builtin.Int   using (Int)
-open import Agda.Builtin.Float using () renaming (Float to Double)
+import Data.Bool    as Bool
+import Data.Integer as Int
+import Data.Float   as Doub
 
 open import Data.Product using (_×_; _,_)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_)
@@ -65,9 +65,9 @@ data Unique {A : Set} : (l : List (Id × A)) → Set where
 
 
 toSet : Type → Set
-toSet bool = Bool
-toSet int = Int
-toSet doub = Double
+toSet bool = Bool.Bool
+toSet int = Int.ℤ
+toSet doub = Doub.Float
 toSet void = ⊥
 toSet (fun t ts) = ⊥ -- toFun t ts
   where
@@ -186,3 +186,5 @@ record Program : Set where
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     hasDefs    : FunList Σ' Defs
     uniqueDefs : Unique Σ'
+
+
