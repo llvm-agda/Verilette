@@ -6,8 +6,7 @@ open import Javalette.Parser using (Err; parseProg)
 open import Data.String
 open import TypeChecker
 open import TypeCheckerMonad using (TCM)
-open import CompileIndexed using (compileProgram; pProgram)
-open import DeSugar
+open import Compile using (compileProgram; pProgram)
 open import Data.Sum.Base
 open import Agda.Builtin.IO
 open import Agda.Builtin.String

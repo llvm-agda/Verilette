@@ -23,7 +23,6 @@ open import Function using (case_of_)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
 open import TypedSyntax Id renaming (Program to TypedProgram)
-open import DeSugar
 open import TypeCheckerMonad
 open import Util
 
