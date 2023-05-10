@@ -49,27 +49,6 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
 
-checkReturn  : (ss : TypedStms Σ T Γ) → TCM (returnStms ss)
-checkReturn' : (s  : TypedStm  Σ T Γ) → TCM (returnStm  s)
-checkReturn SEmpty = error "Function does not return"
-checkReturn (s SCons ss) with checkReturn' s
-... | inj₂ x = pure (SHead x)
-... | inj₁ _ = SCon <$> checkReturn ss
-
-checkReturn' (SBlock ss)       = SBlock  <$> checkReturn ss
-checkReturn' (SIfElse x s1 s2) = SIfElse <$> checkReturn s1 <*> checkReturn s2
-checkReturn' (SReturn x)       = pure SReturn
-checkReturn' (SExp x)          = error "Exp does not return"
-checkReturn' (SDecl t id x _)  = error "Exp does not return"
-checkReturn' (SAss id e x)     = error "Exp does not return"
-checkReturn' (SWhile x x₁)     = error "Exp does not return"
-
-addReturnVoid : (T : Type) → TypedStms Σ T Γ → TypedStms Σ T Γ
-addReturnVoid void SEmpty = SReturn vRet SCons SEmpty
-addReturnVoid void (s SCons x) = s SCons (addReturnVoid void x)
-addReturnVoid _    x = x
-
-
 checkFun : (Σ : SymbolTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ ts t)
 checkFun Σ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
@@ -77,21 +56,20 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
     eqLists ts ts'
     let params = zip ids ts
     unique  ← checkUnique params
-    -- ss'     ← addReturnVoid t <$> checkStms (params ∷ []) (deSugarList b)
     _ , ss' ← checkStms (params ∷ []) b 
-    let ss' = addReturnVoid t (toStms ss')
-    returns ← checkReturn ss'
+    returns ← CH.checkReturn ss'
     pparam  ← checkAll (_=/= void) ts
     pure (record { idents    = ids
-                 ; body      = ss'
+                 ; body      = toStms ss'
                  ; voidparam = pparam
                  ; unique    = unique
-                 ; return    = returns })
-  where -- open CheckStm Σ t
-        import CheckExp as CH
-        open CH.CheckStatements Σ t
+                 ; return    = returnProof returns })
+  where import CheckExp Σ as CH
+        open CH.CheckStatements t
         open import Translate Σ using (toStms)
 
+        import TypeCheckerProofs as TCP 
+        open TCP.ReturnsProof  Σ using (returnProof)
 
 checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList Σ' Σ)
 checkFuns Σ' [] [] = pure []

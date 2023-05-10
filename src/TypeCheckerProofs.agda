@@ -1,14 +1,16 @@
-
+{-# OPTIONS --allow-unsolved-metas #-}
 
 open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_)
 
-open import Data.Product using (_×_; _,_; ∃; proj₂)
+open import Data.List using (List; _∷_; []; _++_) renaming (_ʳ++_ to _++r_)
+open import Data.List.Properties using (ʳ++-defn)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import Util 
-open import TypedSyntax Ident using (SymbolTab; Ctx; Num; Ord; Eq) 
+open import TypedSyntax Ident as TS using (SymbolTab; Ctx; Num; Ord; Eq
+                                          ; Γ; Δ; Δ')
 open import WellTyped 
 open import CheckExp 
 
@@ -43,7 +45,7 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
   inferProof eLitTrue = refl
   inferProof eLitFalse = refl
   inferProof (eVar id x n) = {!!}
-  inferProof (eApp id x n xs) = {!!}
+  inferProof (eApp id x xs) = {!!}
   inferProof (neg Num.NumInt eT)    rewrite inferProof eT = refl
   inferProof (neg Num.NumDouble eT) rewrite inferProof eT = refl
   inferProof (not eT) rewrite inferProof eT = refl
@@ -77,10 +79,57 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
   checkProof {t = t} x rewrite inferProof x rewrite =T=Refl t = refl
 
 
-  -- returnProof : {ssT : (Δ ∷ Γ) ⊢ ss ⇒⇒ Δ'} → Returns ssT → TS.returnStms (toStms ssT)
-  -- returnProof (here (ret e')) = SHead SReturn
-  -- returnProof (here (vRet {p = p}) ) rewrite p = SHead SReturn
-  -- returnProof (here (bStmt ss)) = SHead (SBlock (returnProof ss))
-  -- returnProof (here (condElse x x₁)) = SHead (SIfElse {!SHead!} {!!})
-  -- returnProof (there {s' = s'} {ss'} x) with p ← returnProof x = {!!}
-  -- returnProof (vEnd refl) = {!!}
+
+module ReturnsProof (Σ : SymbolTab) where
+
+  open WellTyped.Statements Σ
+  open WellTyped.Return
+
+  open TS.Valid Σ
+  open TS.Typed Σ
+  open TS.returnStm
+  open TS.returnStms
+
+  open Javalette.AST.Item
+
+  open import Translate Σ using (toExp; toStms; _SCons'_; toDecls; toZero)
+
+
+  returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid t)
+               {ss : Stms T ((Δ' ++r Δ) ∷ Γ)}
+               (is' : DeclP Σ t is (Δ ∷ Γ) Δ')
+                    → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
+  returnDecl n [] p = p
+  returnDecl n (_∷_ {i = noInit x} px is) p = SCon (returnDecl n is p)
+  returnDecl n (_∷_ {i = init x e} px is) p = SCon (returnDecl n is p)
+
+  returnProofThere : ∀ {T s ss Δ Δ' Δ''} {sT : _⊢_⇒_ T (Δ ∷ Γ) s Δ'} {ssT : _⊢_⇒⇒_ T _ ss Δ''}
+                            → TS.returnStms (toStms ssT) → TS.returnStms (toStms (sT ∷ ssT))
+  returnProofThere {sT = Statements.empty} x = x
+  returnProofThere {sT = Statements.ret x₁} x       = SHead SReturn
+  returnProofThere {sT = Statements.vRet refl} x    = SHead SReturn
+  returnProofThere {sT = Statements.condElse x₁ sT sT₁} x = SCon x
+  returnProofThere {sT = Statements.bStmt x₁} x     = SCon x
+  returnProofThere {sT = Statements.ass id x₁ x₂} x = SCon x
+  returnProofThere {sT = Statements.incr id x₁} x   = SCon x
+  returnProofThere {sT = Statements.decr id x₁} x   = SCon x
+  returnProofThere {sT = Statements.cond x₁ sT} x   = SCon x
+  returnProofThere {sT = Statements.while x₁ sT} x  = SCon x
+  returnProofThere {sT = Statements.sExp x₁} x      = SCon x
+  returnProofThere {Δ = Δ} {sT = Statements.decl {Δ' = Δ'} t n is} x
+                       rewrite sym (ʳ++-defn Δ' {Δ}) = returnDecl n is x -- Why is this rewrite necessary?
+
+
+  returnProof : ∀ {T ss} {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
+  returnProofBlock : ∀ {T s} {sT : _⊢_⇒_ T ([] ∷ Δ ∷ Γ) s Δ'} → Returns' sT → TS.returnStms (sT SCons' SEmpty)
+  returnProofBlock (ret e') = SHead SReturn
+  returnProofBlock vRet = SHead SReturn
+  returnProofBlock (bStmt x) = SHead (SBlock (returnProof x))
+  returnProofBlock (condElse x x₁) = SHead (SIfElse (returnProofBlock x) (returnProofBlock x₁))
+
+  returnProof (here (ret e'))   = SHead SReturn
+  returnProof (here vRet)       = SHead SReturn
+  returnProof (here (bStmt ss)) = SHead (SBlock (returnProof ss))
+  returnProof vEnd              = SHead SReturn
+  returnProof (there {s' = s'} {ss' = ss'} x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
+  returnProof (here (condElse x x₁)) = SHead (SIfElse (returnProofBlock x) (returnProofBlock x₁))

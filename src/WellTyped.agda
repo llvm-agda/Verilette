@@ -82,6 +82,11 @@ module Expression (Σ : SymbolTab) where
     ePrintString : ∀ s → Γ ⊢ eApp (ident "printString") (eString s ∷ []) ∶ void
 
 
+_,,_ : Block → Ctx → Ctx
+Δ ,, [] = Δ ∷ []
+Δ ,, (Δ' ∷ Γ) = (Δ ++ Δ') ∷ Γ
+
+
 ItemP : (Σ : SymbolTab) → Type → Ctx → Item → Set
 ItemP _ _ [] _      = ⊥
 ItemP _ _ (Δ ∷ Γ) (noInit id) =  id ∉ Δ
@@ -100,10 +105,6 @@ data DeclP (Σ : SymbolTab) (T : Type) : List Item → (Γ : Ctx) → Block → 
 module Statements (Σ : SymbolTab) (T : Type) where
 
   open Expression Σ
-
-  _,,_ : Block → Ctx → Ctx
-  Δ ,, [] = Δ ∷ []
-  Δ ,, (Δ' ∷ Γ) = (Δ ++ Δ') ∷ Γ
 
   data _⊢_⇒⇒_ (Γ : Ctx) : List Stmt → Block → Set
   data _⊢_⇒_  (Γ : Ctx) :      Stmt → Block → Set where
@@ -125,23 +126,22 @@ module Statements (Σ : SymbolTab) (T : Type) where
     _∷_ : ∀ {s ss} → Γ ⊢ s ⇒ Δ  →  (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'  →  Γ ⊢ s ∷ ss ⇒⇒ (Δ' ++ Δ)
 
 
+module Return where
 
-module Functions (Σ : SymbolTab) (T : Type) where
+  open Statements
+  open Expression
 
-  open Statements Σ T
-  open Expression Σ
-
-  data Returns' : {s  :      Stmt} → (Γ ⊢ s ⇒ Δ) → Set
-  data Returns  : {ss : List Stmt} → (Γ ⊢ ss ⇒⇒ Δ) → Set where
-    here  : ∀ {s ss} → {s' : Γ ⊢ s ⇒ Δ} → {ss' : (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'}
+  data Returns' {Σ : SymbolTab} {Γ : Ctx} : ∀ {  T} {s  :      Stmt} → (_⊢_⇒_  Σ T Γ s   Δ) → Set
+  data Returns  {Σ : SymbolTab}           : ∀ {Γ T} {ss : List Stmt} → (_⊢_⇒⇒_ Σ T Γ ss  Δ) → Set where
+    here  : ∀ {s ss} → {s' : _⊢_⇒_ Σ T Γ s Δ} → {ss' : _⊢_⇒⇒_ Σ T (Δ ,, Γ) ss Δ'}
                        → Returns' s' → Returns (s' ∷ ss')
-    there : ∀ {s ss} → {s' : Γ ⊢ s ⇒ Δ} → {ss' : (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'}
+    there : ∀ {s ss} → {s' : _⊢_⇒_ Σ T Γ s Δ} → {ss' : _⊢_⇒⇒_ Σ T (Δ ,, Γ) ss Δ'}
                       → Returns ss' → Returns (s' ∷ ss')
-    vEnd : ∀ {Δ} → (T ≡ void) → Returns {Δ ∷ []} []
+    vEnd : ∀ {Δ} → Returns {Γ = Δ ∷ []} {T = void} []
 
-  data Returns' where
-    ret  : (e' : Γ ⊢ e ∶ T) → Returns' (ret e')
-    vRet : {p : T ≡ void}   → Returns' {Γ} (vRet p)
-    bStmt : ∀ {ss} → {ss' : ([] ∷ Γ) ⊢ ss ⇒⇒ Δ} → Returns ss' →  Returns' (bStmt ss')
-    condElse : ∀ {s1 s2} → { eB : Γ ⊢ e ∶ bool } → {s1' : ([] ∷ Γ) ⊢ s1 ⇒ Δ} → {s2' : ([] ∷ Γ) ⊢ s2 ⇒ Δ'}
+  data Returns' {Σ} {Γ} where
+    ret   : (e' : _⊢_∶_ Σ Γ e T) → Returns' (ret e')
+    vRet  : Returns' (vRet refl)
+    bStmt : ∀ {ss} → {ss' : _⊢_⇒⇒_ Σ T ([] ∷ Γ) ss Δ} → Returns ss' →  Returns' (bStmt ss')
+    condElse : ∀ {s1 s2} → { eB : _⊢_∶_ Σ Γ e bool } → {s1' : _⊢_⇒_ Σ T ([] ∷ Γ) s1 Δ} → {s2' : _⊢_⇒_ Σ T ([] ∷ Γ) s2 Δ'}
                      → Returns' s1' → Returns' s2' → Returns' (condElse eB s1' s2')

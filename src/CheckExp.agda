@@ -149,3 +149,21 @@ module CheckStatements (T : Type) where
           checkIs Δ (init id e ∷ is) = do p  ← zipM (id notIn Δ) (checkExp (Δ ∷ Γ) t e)
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
                                           pure ((id , t) ∷ Δ' , p ∷ ps)
+
+
+module _ where
+
+  open Statements Σ
+  open WellTyped.Return
+
+  checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Δ) → TCM (Returns  ss')
+  checkReturn' : ∀ {s  t} → (s'  : _⊢_⇒_  t Γ s  Δ) → TCM (Returns' s')
+  checkReturn (s ∷ ss) = here <$> checkReturn' s <|> there <$> (checkReturn ss)
+  checkReturn {Γ = Δ ∷ []} {t = void} [] = pure vEnd
+  checkReturn                         [] = error "CheckReturn failed; found no return"
+
+  checkReturn' (condElse x s1 s2) = condElse <$> checkReturn' s1 <*> checkReturn' s2
+  checkReturn' (bStmt x)   = bStmt <$> checkReturn x
+  checkReturn' (ret x)     = pure (ret x)
+  checkReturn' (vRet refl) = pure vRet
+  checkReturn' s = error "CheckReturn' failed; found non-returning stmt"

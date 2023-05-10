@@ -1,3 +1,4 @@
+{-# OPTIONS --allow-unsolved-metas #-}
 
 open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
@@ -24,6 +25,7 @@ open Valid Σ
 
 open Expression Σ
 open Statements Σ
+open WellTyped.Return
 
 
 toZero : NonVoid T → toSet T
@@ -67,10 +69,12 @@ toDecls n [] ss = ss
 toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ _ (EValue (toZero n)) px) SCons toDecls n is ss
 toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ _ (toExp e')          px) SCons toDecls n is ss
 
-toStms : ∀ {ss Δ Δ'} → _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ' → Stms T (Δ ∷ Γ)
+
+toStms : ∀ {T Γ ss Δ Δ'} → _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ' → Stms T (Δ ∷ Γ)
 _SCons'_ : ∀ {s} → _⊢_⇒_ T (Δ ∷ Γ) s Δ' → Stms T ((Δ' ++ Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
-toStms []       = SEmpty
 toStms (x ∷ ss) = x SCons' (toStms ss)
+toStms {void} {[]} [] = (SReturn vRet) SCons SEmpty
+toStms {_}    {_}  [] = SEmpty
 
 _SCons'_ {Δ = Δ} (decl {Δ' = Δ'} t n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
 empty          SCons' ss = ss
@@ -84,6 +88,7 @@ cond x s       SCons' ss = SIfElse (toExp x) (s SCons' SEmpty) SEmpty      SCons
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' SEmpty) (f SCons' SEmpty) SCons ss
 while x s      SCons' ss = SWhile (toExp x) (s SCons' SEmpty) SCons ss
 sExp x         SCons' ss = SExp (toExp x) SCons ss
+
 
 
 -- checkToStms : ∀ Δ Γ → (ss : List Stmt) → TCM (TS.Valid.Stms T Σ (Δ ∷ Γ))
