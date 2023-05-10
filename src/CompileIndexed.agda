@@ -44,12 +44,12 @@ llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 llvmTypes [] = []
 llvmTypes (x ∷ xs) = llvmType x ∷ llvmTypes xs
 
-toSetProof : {t : OldType} → oldToSet t ≡ toSet (llvmType t)
-toSetProof {OldType.int} = refl
-toSetProof {OldType.doub} = refl
-toSetProof {OldType.bool} = refl
-toSetProof {OldType.void} = refl
-toSetProof {OldType.fun t ts} = refl
+toSetProof : (t : OldType) → oldToSet t ≡ toSet (llvmType t)
+toSetProof OldType.int = refl
+toSetProof OldType.doub = refl
+toSetProof OldType.bool = refl
+toSetProof OldType.void = refl
+toSetProof (OldType.fun t ts) = refl
 
 BlockList : Block → Set
 BlockList Δ = TList (λ (id , t) → Operand (llvmType t *)) Δ
@@ -172,18 +172,19 @@ llvmSymHom : (Σ' Σ : OldSymbolTab) → llvmSym (Σ' +++ Σ) ≡ (llvmSym Σ' +
 llvmSymHom [] Σ = refl
 llvmSymHom (x ∷ Σ') Σ rewrite llvmSymHom Σ' Σ = refl
 
-numToFirstClass : Num t → FirstClass (llvmType t)
-numToFirstClass NumInt = lint 31
-numToFirstClass NumDouble = float
 
-ordToFirstClass : Ord t → FirstClass (llvmType t)
-ordToFirstClass OrdInt = lint 31
-ordToFirstClass OrdDouble = float
+fromNum : Num t → FirstClass (llvmType t)
+fromNum NumInt    = lint 31
+fromNum NumDouble = float
 
-eqToFirstClass : Eq t → FirstClass (llvmType t)
-eqToFirstClass EqInt = lint 31
-eqToFirstClass EqBool = lint 0
-eqToFirstClass EqDouble = float
+fromOrd : Ord t → FirstClass (llvmType t)
+fromOrd OrdInt    = lint 31
+fromOrd OrdDouble = float
+
+fromEq : Eq t → FirstClass (llvmType t)
+fromEq EqInt    = lint 31
+fromEq EqBool   = lint 0
+fromEq EqDouble = float
 
 -- Compilation using a given SymTab σ
 module _ (σ : SymTab Σ) where
@@ -191,14 +192,14 @@ module _ (σ : SymTab Σ) where
   open Valid 
 
   compileExp : (e : Exp Σ Γ t) → CM Γ Γ (Operand (llvmType t)) 
-  compileExp (EValue {t} x) rewrite toSetProof {t} = pure (const x)
+  compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
   compileExp (EId id x) = emitTmp =<< load <$> getPtr x
-  compileExp (EArith p x op y) = emitTmp =<< arith (numToFirstClass p) op  <$> compileExp x <*> compileExp y
+  compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
   compileExp (EMod     x    y) = emitTmp =<< srem        <$> compileExp x <*> compileExp y
-  compileExp (EOrd   p x op y) = emitTmp =<< cmp (ordToFirstClass p)    op' <$> compileExp x <*> compileExp y
+  compileExp (EOrd   p x op y) = emitTmp =<< cmp (fromOrd p)    op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { <  → RelOp.lTH ; <= → RelOp.lE
                              ; >  → RelOp.gTH ; >= → RelOp.gE }
-  compileExp (EEq    p x op y) = emitTmp =<< cmp (eqToFirstClass p)    op' <$> compileExp x <*> compileExp y
+  compileExp (EEq    p x op y) = emitTmp =<< cmp (fromEq p)    op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { == → RelOp.eQU ; != → RelOp.nE }
 
   compileExp (ELogic x op y) = do mid ← newLabel
@@ -218,7 +219,7 @@ module _ (σ : SymTab Σ) where
                                   emitTmp (phi ((x' , postx) ∷ (y' , posty) ∷ []))
 
   compileExp (ENeg p e) = do e' ← compileExp e
-                             emitTmp (arith (numToFirstClass p) ArithOp.* e' (const (negOne p)))
+                             emitTmp (arith (fromNum p) ArithOp.* e' (const (negOne p)))
   compileExp (ENot e) = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
   compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
                                 let id = ident ("str" ++ showℕ c)
@@ -232,10 +233,11 @@ module _ (σ : SymTab Σ) where
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 
 
-  compileStm  : (s  : Stm  t Σ Γ) → CM Γ (nextCtx t Σ s)  ⊤
-  compileStms : (ss : Stms t Σ Γ) → CM Γ (lastCtx t Σ ss) ⊤
+  compileStm  : (s  : Stm  Σ t Γ) → CM Γ (nextCtx Σ t s)  ⊤
+  compileStms : (ss : Stms Σ t Γ) → CM Γ (lastCtx Σ t ss) ⊤
   compileStm (SExp x) = ignore (compileExp x)
-  compileStm (SDecl t id x p) rewrite toSetProof {t} = emit =<< store (const x)    <$> addVar t p
+  compileStm (SDecl t id x p) = do x' ← compileExp x
+                                   emit =<< store x' <$> addVar t p
   compileStm (SAss id e x)    = emit =<< store <$> compileExp e <*> getPtr x
   compileStm (SWhile x ss) = do preCond ← newLabel
                                 loop    ← newLabel
@@ -312,7 +314,6 @@ compileProgram p =
 
         help : FunList' (llvmSym (BuiltIn +++ Defs)) (llvmSym Defs) → FunList' (llvmSym BuiltIn +++ llvmSym Defs) (llvmSym Defs)
         help x rewrite llvmSymHom BuiltIn Defs = x
-        
 
 
 

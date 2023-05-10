@@ -14,7 +14,7 @@ open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
 TCM : Set → Set
 TCM = String ⊎_
 
-open RawMonad {{...}} public hiding (zip)
+open RawMonad {{...}} public renaming (zip to zipM)
 instance
   monadTCM : {A : Set} → RawMonad (A ⊎_)
   monadTCM {a} = monadSum a lzero

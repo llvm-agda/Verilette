@@ -1,138 +1,151 @@
 
 open import Agda.Builtin.Equality using (refl; _≡_)
+open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
+open import Data.String using (_≟_)
+
+open import Data.Product using (_×_; _,_; ∃; proj₂)
+open import Data.List using (List; _∷_; []; zip; _++_; reverse) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Relation.Unary.All using (All; reduce); open All
+
 open import Agda.Builtin.Bool using (true; false)
+
 
 open import TypeCheckerMonad 
 open import Util 
-open import Javalette.AST renaming (Expr to Exp)
-open import TypedSyntax Ident
+open import Javalette.AST
+
+open import TypedSyntax Ident as TS using (Block; Ctx; SymbolTab;
+                                           _∈'_; _∈_; _∉_;
+                                           Num; Eq; Ord; Return; toSet; NonVoid;
+                                           Γ; Δ; Δ'; T; Ts) 
+open import WellTyped 
 
 
+module CheckExp (Σ : SymbolTab) where
 
-module CheckExp (Σ : SymbolTab) (Γ : Ctx) where
-
-open Typed Σ renaming (Exp to TypedExp)
-
-
-unType      :        TypedExp Γ  T  → Exp
-unTypeTList : TList (TypedExp Γ) ts → List Exp
-unTypeTList []       = []
-unTypeTList (x ∷ xs) = unType x ∷ unTypeTList xs
-
-unType (EValue {T} x) with T
-...    | int            = eLitInt x
-...    | doub           = eLitDoub x
-...    | bool   with x
-...             | true  = eLitTrue
-...             | false = eLitFalse
-unType (ENeg p  x)      = neg (unType x)
-unType (ENot x)         = not (unType x)
-unType (EId id₁ x)      = eVar id₁
-unType (EArith p x + y) = eAdd (unType x) plus  (unType y)
-unType (EArith p x - y) = eAdd (unType x) minus (unType y)
-unType (EArith p x * y) = eMul (unType x) times (unType y)
-unType (EArith p x / y) = eMul (unType x) div   (unType y)
-unType (EMod x y)       = eMul (unType x) mod   (unType y)
-unType (EOrd _ x < y )  = eRel (unType x) lTH   (unType y)
-unType (EOrd _ x <= y ) = eRel (unType x) lE    (unType y)
-unType (EOrd _ x > y )  = eRel (unType x) gTH   (unType y)
-unType (EOrd _ x >= y ) = eRel (unType x) gE    (unType y)
-unType (EEq _ x == y)   = eRel (unType x) eQU   (unType y)
-unType (EEq _ x != y)   = eRel (unType x) nE    (unType y)
-unType (ELogic x && y)  = eAnd (unType x) (unType y)
-unType (ELogic x || y)  = eOr  (unType x) (unType y)
-unType (EAPP id xs p)   = eApp id (unTypeTList xs)
-unType (EPrintStr s)    = eApp (ident "printString") (eString s ∷ [])
+open Expression Σ
 
 
-data WellTyped (e : Exp) : Set where
-  inferred : (T : Type) → (eT : TypedExp Γ T) → (unType eT) ≡ e →  WellTyped e 
+module CheckExp (Γ : Ctx) where
 
-data WellTypedList (es : List Exp) : Set where
-  inferred : (Ts : List Type) → (eTs : TList (TypedExp Γ) Ts) → unTypeTList eTs ≡ es →  WellTypedList es
-
-pattern _:::_ e t = inferred t e refl
-
-data WellTypedPair (e1 e2 : Exp) : Set where
-  inferredP : (T : Type) → (eT1 eT2 : TypedExp Γ T) → (unType eT1) ≡ e1
-                                                    → (unType eT2) ≡ e2 → WellTypedPair e1 e2
-
-pattern infP e1 e2 t = inferredP t e1 e2 refl refl
-
-
-
--- Typeching of expressions uses a given context, Γ
-
-inferExp  : (e  :      Exp) → TCM (WellTyped     e )
-inferList : (es : List Exp) → TCM (WellTypedList es)
-inferList [] = pure (inferred [] [] refl)
-inferList (e ∷ es) = do e'  ::: t  ← inferExp e
-                        es' ::: ts ← inferList es
-                        pure ((e' ∷ es') ::: (t ∷ ts))
-
-inferPair : (e1 e2 : Exp) → TCM (WellTypedPair e1 e2)
-inferPair e1 e2 = do e1' ::: t1 ← inferExp e1
-                     e2' ::: t2 ← inferExp e2
+  pattern _:::_ e t = t , e 
+  
+  infer     : (e  :      Expr) → TCM (∃ (Γ ⊢ e ∶_))
+  inferList : (es : List Expr) → TCM (∃ (AllPair (Γ ⊢_∶_) es) )
+  inferList [] = pure ([] ::: [])
+  inferList (e ∷ es) = do e'  ::: t  ← infer e
+                          es' ::: ts ← inferList es
+                          pure ((e' ∷ es') ::: (t ∷ ts))
+  
+  inferPair : (x y : Expr) → TCM (∃ (λ t → (Γ ⊢ x ∶ t) × (Γ ⊢ y ∶ t) ))
+  inferPair x y = do x' ::: t1 ← infer x
+                     y' ::: t2 ← infer y
                      refl ← t1 =?= t2
-                     pure (infP e1' e2' t1)
+                     pure ((x' , y') ::: t1)
+  
+  infer (eVar x)  = do inScope t p ← lookupCtx x Γ
+                       n ← ifNonVoid t
+                       pure (eVar x p n ::: t)
+  infer (eLitInt x ) = pure (eLitInt  x ::: int)
+  infer (eLitDoub x) = pure (eLitDoub x ::: doub)
+  infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
+  infer (eLitFalse ) = pure (eLitFalse ::: bool)
+  infer (eString x) = error "encountered string outside of printString"
+  infer (neg e) = do e' ::: t ← infer e
+                     p ← ifNum t
+                     pure (neg p e' ::: t)
+  infer (not e) = do e' ::: bool ← infer e
+                        where _ ::: t → error "non-bool expression found in not"
+                     pure (not e' ::: bool)
+  infer (eMul x op y) with inferPair x y
+  ...   | inj₁ s = error s
+  ...   | inj₂ ((x' , y') ::: t) with op
+  ...     | times = ifNum   t >>= λ  p    → pure (eMul p x' y' ::: t)
+  ...     | div   = ifNum   t >>= λ  p    → pure (eDiv p x' y' ::: t)
+  ...     | mod   = int =?= t >>= λ {refl → pure (eMod   x' y' ::: t)}
+  infer (eAdd x op y) = do (x' , y') ::: t ← inferPair x y
+                           p ← ifNum t
+                           pure (eAdd p op x' y' ::: t)
+  
+  infer (eRel x op y) with inferPair x y
+  ... | inj₁ s = error s
+  ... | inj₂ ((x' , y') ::: t) with op
+  ...      | lTH = ifOrd t >>= λ p → pure (eOrd lTH p x' y' ::: bool)
+  ...      | lE  = ifOrd t >>= λ p → pure (eOrd lE  p x' y' ::: bool)
+  ...      | gTH = ifOrd t >>= λ p → pure (eOrd gTH p x' y' ::: bool)
+  ...      | gE  = ifOrd t >>= λ p → pure (eOrd gE  p x' y' ::: bool)
+  ...      | eQU = ifEq  t >>= λ p → pure (eEq  eQU p x' y' ::: bool)
+  ...      | nE  = ifEq  t >>= λ p → pure (eEq  nE  p x' y' ::: bool)
+  infer (eAnd x y) = do (x' , y') ::: bool ← inferPair x y
+                            where _ ::: t → error "non-bool expression found in and"
+                        pure (eAnd x' y' ::: bool)
+  infer (eOr x y)  = do (x' , y') ::: bool ← inferPair x y
+                            where _ ::: t → error "non-bool expression found in and"
+                        pure (eOr  x' y' ::: bool)
+  infer (eApp (ident "printString") (eString s ∷ [])) = pure (ePrintString s ::: void)
+  infer (eApp x es) = do inList (ts , t) p ← lookupTCM x Σ
+                         es' ::: ts' ← inferList es
+                         refl ← eqLists ts ts'
+                         pure (eApp x p es' ::: t)
+  
+  -- If an expression typechecks it is well typed (in our type semantics) -- Soundness
+  checkExp : (t : Type) → (e : Expr) → TCM (Γ ⊢ e ∶ t)
+  checkExp t e = do e' ::: t' ← infer e
+                    refl ← t =?= t'
+                    pure e'
 
 
-inferExp (eLitFalse)  = pure (EValue false ::: bool)
-inferExp (eLitTrue)   = pure (EValue true  ::: bool)
-inferExp (eLitInt x)  = pure (EValue x     ::: int)
-inferExp (eLitDoub x) = pure (EValue x     ::: doub)
-inferExp (eVar x)     = do inScope t p ← lookupCtx x Γ
-                           pure (EId x p ::: t)
+module CheckStatements (T : Type) where
+  open Statements Σ T
 
-inferExp (eApp (ident "printString") (eString s ∷ [])) with lookup (ident "printString") Σ
-... | just (inList (void ∷ [] , void)  p) = pure (EPrintStr s ::: void)
-... | _                                   = error "Mismatch in printString"
-inferExp (eApp x es)   = do inList (ts , t) p ← lookupTCM x Σ
-                            es' ::: ts' ← inferList es
-                            refl ← eqLists ts ts'
-                            pure (EAPP x es' p ::: t)
+  open CheckExp
 
-inferExp (eMul e1 op e2) with inferPair e1 e2
-... | inj₁ s = error s
-... | inj₂ (infP e1' e2' t) with op
-...      | times = ifNum   t >>= λ  p    → pure (EArith p e1' (*) e2' ::: t)
-...      | div   = ifNum   t >>= λ  p    → pure (EArith p e1' (/) e2' ::: t)
-...      | mod   = int =?= t >>= λ {refl → pure (EMod     e1'     e2' ::: t)}
+  check     : (Γ : Ctx) → (s  :      Stmt) → TCM (∃ (Γ ⊢ s ⇒_))
 
-inferExp (eAdd e1 op e2) with inferPair e1 e2
-... | inj₁ s = error s
-... | inj₂ (infP e1' e2' t) with op
-...      | plus  = ifNum t >>= λ p → pure (EArith p e1' (+) e2' ::: t)
-...      | minus = ifNum t >>= λ p → pure (EArith p e1' (-) e2' ::: t)
+  checkStms : (Γ : Ctx) → (ss : List Stmt) → TCM (∃ (Γ ⊢ ss ⇒⇒_))
+  checkStms Γ [] = pure ([] , [])
+  checkStms Γ (s ∷ ss) = do Δ  , s'  ← check Γ s
+                            Δ' , ss' ← checkStms (Δ ,, Γ) ss
+                            pure (Δ' ++ Δ , s' ∷ ss')
 
-inferExp (eRel e1 op e2) with inferPair e1 e2
-... | inj₁ s = error s
-... | inj₂ (infP e1' e2' t) with op
-...      | lTH = ifOrd t >>= λ p → pure (EOrd p e1' (<)  e2' ::: bool)
-...      | lE  = ifOrd t >>= λ p → pure (EOrd p e1' (<=) e2' ::: bool)
-...      | gTH = ifOrd t >>= λ p → pure (EOrd p e1' (>)  e2' ::: bool)
-...      | gE  = ifOrd t >>= λ p → pure (EOrd p e1' (>=) e2' ::: bool)
-...      | eQU = ifEq  t >>= λ p → pure (EEq  p e1' (==) e2' ::: bool)
-...      | nE  = ifEq  t >>= λ p → pure (EEq  p e1' (!=) e2' ::: bool)
-
-inferExp (eAnd e1 e2)   = do infP e1' e2' bool ← inferPair e1 e2
-                                  where _ → error "And applied to nonBool args"
-                             pure (ELogic e1' && e2' ::: bool)
-inferExp (eOr e1 e2)    = do infP e1' e2' bool ← inferPair e1 e2
-                                  where _ → error "Or applied to nonBool args"
-                             pure (ELogic e1' || e2' ::: bool)
-
-inferExp (eString x)   = error "Found string outside of call to printString"
-inferExp (neg e) = do e' ::: t ← inferExp e
-                      p ← ifNum t
-                      pure (ENeg p e' ::: t)
-inferExp (not e) = do e' ::: t ← inferExp e
-                      refl ← t =?= bool
-                      pure (ENot e'  ::: t)
-
-
-checkExp : (T : Type) → Exp → TCM (TypedExp Γ T)
-checkExp t x = do e ::: t' ← inferExp x
-                  refl ← t =?= t'
-                  pure e
+  check Γ empty = pure ([] , empty)
+  check Γ (bStmt (block ss)) = do _ , ss' ← checkStms ([] ∷ Γ) ss
+                                  pure ([] , bStmt ss')
+  check Γ (ass x e) = do inScope t p ← lookupCtx x Γ
+                         e' ← checkExp Γ t e
+                         pure ([] , ass x p e')
+  check Γ (incr x) = do inScope int p ← lookupCtx x Γ
+                          where _ → error "Can not increment non-int type"
+                        pure ([] , incr x p)
+  check Γ (decr x) = do inScope int p ← lookupCtx x Γ
+                          where _ → error "Can not decrement non-int type"
+                        pure ([] , decr x p)
+  check Γ (ret e) = do e' ← checkExp Γ T e
+                       pure ([] , (ret e'))
+  check Γ vRet = do refl ← T =?= void
+                    pure ([] , vRet refl)
+  check Γ (cond e t) = do e' ← checkExp Γ bool e
+                          _ , t' ← check ([] ∷ Γ) t
+                          pure ([] , cond e' t')
+  check Γ (condElse e t f) = do e' ← checkExp Γ bool e
+                                _ , t' ← check ([] ∷ Γ) t
+                                _ , f' ← check ([] ∷ Γ) f
+                                pure ([] , condElse e' t' f')
+  check Γ (while e s) = do e' ← checkExp Γ bool e
+                           _ , s' ← check ([] ∷ Γ) s
+                           pure ([] , while e' s')
+  check Γ (sExp e) = do e' ← checkExp Γ void e
+                        pure ([] , sExp e')
+  check Γ (decl t is) with Γ
+  ... | []    = error "Can not declare variable in empty Ctx"
+  ... | Δ ∷ Γ = do p ← ifNonVoid t
+                   Δ' , is' ← checkIs Δ is
+                   pure (reverse Δ' , decl t p is')
+    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ t is (Δ ∷ Γ)))
+          checkIs Δ [] = pure ([] , [])
+          checkIs Δ (noInit id ∷ is) = do p  ← id notIn Δ
+                                          Δ' , ps ← checkIs ((id , t) ∷ Δ) is
+                                          pure ((id , t) ∷ Δ' , p ∷ ps)
+          checkIs Δ (init id e ∷ is) = do p  ← zipM (id notIn Δ) (checkExp (Δ ∷ Γ) t e)
+                                          Δ' , ps ← checkIs ((id , t) ∷ Δ) is
+                                          pure ((id , t) ∷ Δ' , p ∷ ps)

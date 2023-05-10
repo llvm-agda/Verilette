@@ -63,7 +63,7 @@ data Operand (T : Type) : Set where
 
 data Instruction : (T : Type) → Set where
   arith  : FirstClass T → ArithOp → (x y : Operand T) → Instruction T
-  cmp    : FirstClass T → RelOp → (x y : Operand T) → Instruction i1
+  cmp    : FirstClass T → RelOp   → (x y : Operand T) → Instruction i1
   srem   : (x y : Operand i32) → Instruction i32 -- signed modulo
   alloc  : (T : Type) → Instruction T
   load   : Operand (T *) → Instruction T

@@ -28,11 +28,6 @@ open import TypeCheckerMonad
 open import Util
 
 
-checkAll : {P : A → Set} → ((a : A) → TCM (P a)) → (as : List A) → TCM (All P as)
-checkAll P []       = pure []
-checkAll P (x ∷ xs) = _∷_ <$> P x <*> checkAll P xs
-
-
 builtin : SymbolTab
 builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "printString" , (void ∷ [] , void)) -- HACK for string
@@ -47,14 +42,6 @@ getSymEntry (fnDef t x as b) = x , map fromArg as , t
         fromArg (argument t x) = t
 
 
-_notIn_ : (x : Id) → (xs : List (Id × A)) → TCM (x ∉ xs)
-id notIn xs = checkAll (λ (id' , _) → notEq id id') xs
-  where notEq : (x y : Id) → TCM (x ≢ y)
-        notEq id id' with id eqId id'
-        ... | inj₁ x = pure x
-        ... | inj₂ y = error (showId id ++ " was already in scope when delcaring new var")
-
-
 checkUnique : (xs : List (Id × A)) → TCM (Unique xs)
 checkUnique []              = pure []
 checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
@@ -62,47 +49,9 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
--- Validating statments using a given SymbolTab and Return Type
-module CheckStm (Σ : SymbolTab) (T : Type) where
-  open Typed Σ using (EArith; EId; EValue)
-  open import CheckExp Σ
 
-  checkStm  : (Γ : Ctx) → (s : Stm)      → TCM (TypedStm  T Σ Γ)
-  checkStms : (Γ : Ctx) → (s : List Stm) → TCM (TypedStms T Σ Γ)
-
-  checkStms Γ []       = pure SEmpty
-  checkStms Γ (s ∷ ss) = do s'  ← checkStm  Γ s
-                            ss' ← checkStms (nextCtx T Σ s') ss
-                            pure (s' SCons ss')
-
-
-  checkStm Γ (sExp e)         = SExp <$> checkExp Γ void e
-  checkStm Γ (ass id e)       = do inScope t p ← lookupCtx id Γ
-                                   e' ← checkExp Γ t e
-                                   pure (SAss id e' p)
-  checkStm Γ (ret e)          = SReturn <$> (Ret <$> checkExp Γ T e)
-  checkStm Γ (vRet)           = do refl ← T =?= void
-                                   pure (SReturn vRet)
-  checkStm Γ (while e ss)     = SWhile  <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) ss
-  checkStm Γ (block ss)       = SBlock  <$> checkStms ([] ∷ Γ) ss
-  checkStm Γ (ifElse e s1 s2) = SIfElse <$> checkExp Γ bool e <*> checkStms ([] ∷ Γ) s1
-                                                              <*> checkStms ([] ∷ Γ) s2
-  checkStm Γ (incDec id op)   = do inScope t p ← lookupCtx id Γ
-                                   refl ← t =?= int
-                                   let op' = case op of λ {inc → + ; dec → (-)}
-                                   pure (SAss id (EArith NumInt (EId id p) op' (EValue (pos 1))) p)
-  checkStm Γ (decl t x) with Γ
-  ...           | []     = error "Empty context when declaring variables"
-  ...           | Δ ∷ Γ with t
-  ... | int  = SDecl int  x (pos 0) <$> x notIn Δ
-  ... | doub = SDecl doub x 0.0     <$> x notIn Δ
-  ... | bool = SDecl bool x false   <$> x notIn Δ
-  ... | void = error "Cannot decl void"
-  ... | fun y ts = error "Cannot decl fun type"
-
-
-checkReturn  : (ss : TypedStms T Σ Γ) → TCM (returnStms ss)
-checkReturn' : (s  : TypedStm  T Σ Γ) → TCM (returnStm  s)
+checkReturn  : (ss : TypedStms Σ T Γ) → TCM (returnStms ss)
+checkReturn' : (s  : TypedStm  Σ T Γ) → TCM (returnStm  s)
 checkReturn SEmpty = error "Function does not return"
 checkReturn (s SCons ss) with checkReturn' s
 ... | inj₂ x = pure (SHead x)
@@ -116,7 +65,7 @@ checkReturn' (SDecl t id x _)  = error "Exp does not return"
 checkReturn' (SAss id e x)     = error "Exp does not return"
 checkReturn' (SWhile x x₁)     = error "Exp does not return"
 
-addReturnVoid : (T : Type) → TypedStms T Σ Γ → TypedStms T Σ Γ
+addReturnVoid : (T : Type) → TypedStms Σ T Γ → TypedStms Σ T Γ
 addReturnVoid void SEmpty = SReturn vRet SCons SEmpty
 addReturnVoid void (s SCons x) = s SCons (addReturnVoid void x)
 addReturnVoid _    x = x
@@ -129,7 +78,9 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
     eqLists ts ts'
     let params = zip ids ts
     unique  ← checkUnique params
-    ss'     ← addReturnVoid t <$> checkStms (params ∷ []) (deSugarList b)
+    -- ss'     ← addReturnVoid t <$> checkStms (params ∷ []) (deSugarList b)
+    _ , ss' ← checkStms (params ∷ []) b 
+    let ss' = addReturnVoid t (toStms ss')
     returns ← checkReturn ss'
     pparam  ← checkAll (_=/= void) ts
     pure (record { idents    = ids
@@ -137,7 +88,10 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
                  ; voidparam = pparam
                  ; unique    = unique
                  ; return    = returns })
-  where open CheckStm Σ t
+  where -- open CheckStm Σ t
+        import CheckExp as CH
+        open CH.CheckStatements Σ t
+        open import Translate Σ using (toStms)
 
 
 checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList Σ' Σ)

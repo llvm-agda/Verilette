@@ -3,6 +3,7 @@
 module Util where
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
+open import Data.List.Relation.Unary.All using (All); open All
 open import Agda.Builtin.Bool
 open import Data.String using (String; _≟_; _++_ )
 
@@ -57,6 +58,18 @@ lookupCtx x (xs ∷ xss) with lookup x xs
                               pure (inScope t (there p))
 
 
+checkAll : {P : A → Set} → ((a : A) → TCM (P a)) → (as : List A) → TCM (All P as)
+checkAll P []       = pure []
+checkAll P (x ∷ xs) = _∷_ <$> P x <*> checkAll P xs
+
+
+_notIn_ : (x : Id) → (xs : List (Id × A)) → TCM (x ∉ xs)
+id notIn xs = checkAll (λ (id' , _) → notEq id id') xs
+  where notEq : (x y : Id) → TCM (x ≢ y)
+        notEq id id' with id eqId id'
+        ... | inj₁ x = pure x
+        ... | inj₂ y = error (showId id ++ " was already in scope when delcaring new var")
+
 
 ifEq : (T : Type) → TCM (Eq T)
 ifEq bool       = pure EqBool
@@ -78,6 +91,13 @@ ifNum int    = pure NumInt
 ifNum doub   = pure NumDouble
 ifNum void   = error "Void is not numeric"
 ifNum (fun T ts) = error "Function is not Num type"
+
+ifNonVoid : (T : Type) → TCM (NonVoid T)
+ifNonVoid bool       = pure NonVoidBool
+ifNonVoid int        = pure NonVoidInt
+ifNonVoid doub       = pure NonVoidDoub
+ifNonVoid void       = error "Void is not-nonVoid"
+ifNonVoid (fun T ts) = error "Function is not-nonVoid"
 
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
 eqLists' : (as : List Type) → (bs : List Type) → (as ≡ bs ⊎ as ≢ bs)

@@ -94,6 +94,11 @@ data Num : (T : Type) → Set where
   NumInt : Num int
   NumDouble : Num doub
 
+data NonVoid : (T : Type) → Set where
+  NonVoidInt  : NonVoid int
+  NonVoidDoub : NonVoid doub
+  NonVoidBool : NonVoid bool
+
 data Return (P : (Type → Set)) : Type -> Set where
   vRet : Return P void
   Ret : P t -> Return P t
@@ -116,13 +121,13 @@ module Typed (Σ : SymbolTab) where
     EPrintStr : String → Exp Γ void
 
 
-module Valid (T : Type) (Σ : SymbolTab) where
+module Valid (Σ : SymbolTab) (T : Type) where
   open Typed Σ
 
   mutual
     data Stm : (Γ : Ctx) → Set  where
       SExp    : Exp Γ void → Stm Γ
-      SDecl   : (t : Type) → (id : Id) → toSet t → id ∉ Δ → Stm (Δ ∷ Γ)
+      SDecl   : (t : Type) → (id : Id) → Exp (Δ ∷ Γ) t → id ∉ Δ → Stm (Δ ∷ Γ)
       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
       SBlock  : Stms ([] ∷ Γ) → Stm Γ
@@ -149,11 +154,11 @@ module Valid (T : Type) (Σ : SymbolTab) where
 open Typed
 open Valid
 
-data returnStms {T Σ Γ} : (ss : Stms T Σ Γ) → Set
-data returnStm  {  Σ Γ} : (s  : Stm  T Σ Γ) → Set where
+data returnStms {T Σ Γ} : (ss : Stms Σ T Γ) → Set
+data returnStm  {  Σ Γ} : (s  : Stm  Σ T Γ) → Set where
   SReturn : {e : Return (Exp Σ Γ) T} → returnStm (SReturn e)
-  SBlock  : {ss : Stms T Σ ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
-  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms T Σ ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
+  SBlock  : {ss : Stms Σ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
+  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
   SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
   SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
@@ -166,7 +171,7 @@ record Def (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   params = zip idents Ts
 
   field
-    body      : Stms T Σ (params ∷ [])
+    body      : Stms Σ T (params ∷ [])
     voidparam : All (_≢ void) Ts
     unique    : Unique params
     return    : returnStms body
