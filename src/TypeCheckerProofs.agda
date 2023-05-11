@@ -120,16 +120,13 @@ module ReturnsProof (Σ : SymbolTab) where
                        rewrite sym (ʳ++-defn Δ' {Δ}) = returnDecl n is x -- Why is this rewrite necessary?
 
 
-  returnProof : ∀ {T ss} {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
-  returnProofBlock : ∀ {T s} {sT : _⊢_⇒_ T ([] ∷ Δ ∷ Γ) s Δ'} → Returns' sT → TS.returnStms (sT SCons' SEmpty)
-  returnProofBlock (ret e') = SHead SReturn
-  returnProofBlock vRet = SHead SReturn
-  returnProofBlock (bStmt x) = SHead (SBlock (returnProof x))
-  returnProofBlock (condElse x x₁) = SHead (SIfElse (returnProofBlock x) (returnProofBlock x₁))
+  returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
+  returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
+  returnProofHere (ret e')  = SHead SReturn
+  returnProofHere vRet      = SHead SReturn
+  returnProofHere (bStmt x) = SHead (SBlock (returnProof x))
+  returnProofHere (condElse x x₁) = SHead (SIfElse (returnProofHere x) (returnProofHere x₁))
 
-  returnProof (here (ret e'))   = SHead SReturn
-  returnProof (here vRet)       = SHead SReturn
-  returnProof (here (bStmt ss)) = SHead (SBlock (returnProof ss))
-  returnProof vEnd              = SHead SReturn
   returnProof (there {s' = s'} {ss' = ss'} x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
-  returnProof (here (condElse x x₁)) = SHead (SIfElse (returnProofBlock x) (returnProofBlock x₁))
+  returnProof (here x) = returnProofHere  x
+  returnProof vEnd     = SHead SReturn

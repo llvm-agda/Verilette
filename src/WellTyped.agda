@@ -49,6 +49,12 @@ data EqOp : RelOp → Set where
     nE  : EqOp nE
   
 
+-- Well formed block
+data WFBlock : (Δ : Block) → Set where
+  []  : WFBlock []
+  _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid t → WFBlock Δ → WFBlock ((id , t) ∷ Δ)
+
+
 module Expression (Σ : SymbolTab) where
 
   -- Typing judgements 
@@ -145,3 +151,17 @@ module Return where
     bStmt : ∀ {ss} → {ss' : _⊢_⇒⇒_ Σ T ([] ∷ Γ) ss Δ} → Returns ss' →  Returns' (bStmt ss')
     condElse : ∀ {s1 s2} → { eB : _⊢_∶_ Σ Γ e bool } → {s1' : _⊢_⇒_ Σ T ([] ∷ Γ) s1 Δ} → {s2' : _⊢_⇒_ Σ T ([] ∷ Γ) s2 Δ'}
                      → Returns' s1' → Returns' s2' → Returns' (condElse eB s1' s2')
+
+
+module FunDef where
+
+  open Statements
+  open Return
+
+  fromArgs : List Arg → Block
+  fromArgs [] = []
+  fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
+
+  data ValidFun (Σ : SymbolTab) : TopDef → Set where
+    validFun : ∀ {t id as ss Δ} → WFBlock (fromArgs as) → (ss' : _⊢_⇒⇒_ Σ t (fromArgs as ∷ []) ss Δ)
+                                → Returns ss' →  ValidFun Σ (fnDef t id as (block ss))

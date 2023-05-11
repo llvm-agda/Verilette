@@ -1,5 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-
 open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
