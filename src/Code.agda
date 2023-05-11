@@ -77,6 +77,7 @@ data Instruction : (T : Type) → Set where
   branch : Operand i1 → (t f : Label) → Instruction void
   vret   : Instruction void
   ret    : Operand T → Instruction T
+  unreachable : Instruction void
 
   label  : Label → Instruction void
 

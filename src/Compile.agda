@@ -273,11 +273,17 @@ module _ (σ : SymTab Σ) where
                                         v ← addVar _ x
                                         emit $ store (local id) v
 
+          -- There should be a better way to ensure that we do not
+          -- generate empty labels from returning ifs.
+          addUnreachable : Code → Code
+          addUnreachable (label x ∷ c) = unreachable ∷ label x ∷ c
+          addUnreachable c = c
+
           compileBody : CM ([] ∷ []) (lastCtx _ _ body) (FunDef _ _ _)
           compileBody = do putLabel (ident "entry")
                            initBlock unique
                            compileStms body
-                           body ← block <$> get
+                           body ← addUnreachable ∘ block <$> get
                            pure (record { idents = idents
                                         ; body = body
                                         -- ; voidparam = {!!} -- voidparam
@@ -385,6 +391,7 @@ module _ where
   ... | branch x t f =  unwords $ "br" ∷ "i1" ∷ pOperand x ∷ "," ∷ pLabel t ∷ "," ∷ pLabel f ∷ []
   ... | vret  = unwords $ "ret"  ∷ "void" ∷ []
   ... | ret x = unwords $ "ret"  ∷ pT ∷ pOperand x ∷ []
+  ... | unreachable = unwords $ "unreachable" ∷ []
   ... | label (ident x) = "error: lables should have been handled in pCode" -- x ++ ":"
 
   -- Should maybe reverse the order of code when compiling
