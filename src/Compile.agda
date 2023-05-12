@@ -1,9 +1,11 @@
 open import Data.Product using (_×_; _,_; ∃; map₂) renaming (proj₁ to fst; proj₂ to snd)
-open import Data.List using (List; _∷_ ; []; map) renaming (_++_ to _+++_)
+open import Data.List using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
 open import Data.List.Relation.Unary.All using (All); open All
 
+open import Data.Bool using (Bool; true; false; _∧_; if_then_else_)
+
 open import Data.String using (String; fromList; unwords; unlines; intersperse; _++_; length)
-open import Agda.Builtin.Int using (negsuc) renaming (primShowInteger to showℤ)
+open import Agda.Builtin.Int using (pos) renaming (primShowInteger to showℤ)
 open import Data.Float using () renaming (show to showℝ)
 import Data.Bool as Bool
 open import Data.Nat using (ℕ; suc; zero)
@@ -15,14 +17,16 @@ open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Data.Unit.Polymorphic.Base using (⊤; tt)
-open import Effect.Monad.Indexed
-open import Effect.Monad.State.Indexed
-open RawIMonadState {{...}} renaming (_⊛_ to _<*>_)
-open import Effect.Monad.Identity as Ident using (Identity; mkIdentity)
+open import Effect.Monad
+open import Effect.Monad.State
+open import Effect.Monad.State.Transformer.Base using (mkStateT)
+open RawMonadState {{...}}
+open RawMonad {{...}}
+
 
 open import Code
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
-open import TypedSyntax Id hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab) 
+open import TypedSyntax Id hiding (T; Ts; toZero) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab) 
 
 module Compile where
 
@@ -75,21 +79,34 @@ open CMState
 initState : GlobalState → CMState ([] ∷ [])
 initState glob = cMS glob 0 0 0 ([] ∷ []) []
 
+addBlock : CMState Γ → CMState ([] ∷ Γ)
+addBlock (cMS g v t l c b) = cMS g v t l ([] ∷ c) b
 
-CM : (Γ Γ' : Ctx) → Set → Set
-CM = IStateT CMState Identity
+removeBlock : CMState (Δ ∷ Γ) → CMState Γ
+removeBlock (cMS g v t l (_ ∷ c) b) = cMS g v t l (c) b
+
+addVar : Operand (llvmType t *) → CMState (Δ  ∷ Γ) → CMState (((id , t) ∷ Δ) ∷ Γ)
+addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b 
+
+removeVar : ∀ {id t} → CMState (((id , t) ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
+removeVar (cMS g v t l ((_ ∷ δ) ∷ γ) b) = cMS g v t l (δ  ∷ γ) b
+
+CM : (Γ : Ctx) → Set → Set
+CM Γ = State (CMState Γ)
 
 instance
-  CMMonad : RawIMonadState CMState CM
-  CMMonad = StateTIMonadState CMState Ident.monad
+  CMMonadState : ∀ {Γ} → RawMonadState (CMState Γ) (CM Γ)
+  CMMonadState {Γ} = monadState
 
-runCM : CM Γ Γ' A → CMState Γ → (A × CMState Γ')
-runCM m s = Ident.runIdentity (m s)
+  CMMonad : ∀ {Γ} → RawMonad (CM Γ)
+  CMMonad = monad
 
+runCM : CM Γ A → CMState Γ → (CMState Γ × A)
+runCM m s = runState m s
 
-negOne : {T : OldType} → Num T → toSet (llvmType T)
-negOne NumInt    = negsuc 0 -- -1
-negOne NumDouble = -1.0
+toZero : {T : OldType} → Num T → toSet (llvmType T)
+toZero NumInt    = pos 0
+toZero NumDouble = 0.0
 
 lookupPtr' : BlockList Δ → (id , t) ∈ Δ → Operand (llvmType t *)
 lookupPtr' (x ∷ b) (here refl) = x
@@ -99,7 +116,7 @@ lookupPtr : CtxList Γ → (id , t) ∈' Γ → Operand (llvmType t *)
 lookupPtr (x ∷ xs) (here p)  = lookupPtr' x p
 lookupPtr (x ∷ xs) (there s) = lookupPtr xs s
 
-getPtr : (id , t) ∈' Γ → CM Γ Γ (Operand (llvmType t *))
+getPtr : (id , t) ∈' Γ → CM Γ (Operand (llvmType t *))
 getPtr p = do ctx ← ctxList <$> get
               pure (lookupPtr ctx p)
 
@@ -108,11 +125,10 @@ lookupFun : SymTab Σ → (id , ts , t) ∈ Σ → Operand (fun (llvmType t) (ll
 lookupFun (x ∷ _)  (here refl) = x
 lookupFun (_ ∷ xs) (there p)   = lookupFun xs p
 
-
-emit : Instruction T → CM Γ Γ ⊤
+emit : Instruction T → CM Γ ⊤
 emit x = modify (λ s → record s {block = x ∷ block s })
 
-emitTmp : Instruction T → CM Γ Γ (Operand T)
+emitTmp : Instruction T → CM Γ (Operand T)
 emitTmp {void} x = do modify λ s → record s {block = x ∷ block s}
                       pure (local (ident "This_void_tmp_should_never_be_used"))
 emitTmp {T} x = do tmp ← tmpC <$> get
@@ -121,38 +137,34 @@ emitTmp {T} x = do tmp ← tmpC <$> get
                                          ; tmpC = suc (tmpC s)}
                    pure operand
 
-allocate : (t : OldType) → CM Γ Γ (Operand (T *))
-allocate t = do v ← varC <$> get
-                let p = ident $ "v" ++ showℕ v
-                modify λ s → record s { block = local p := alloc (llvmType t) ∷ block s
-                                      ; varC = suc (varC s)}
-                pure (local p)
 
-addVar : (t : OldType) → (id ∉ Δ) → CM (Δ ∷ Γ) (((id , t) ∷ Δ) ∷ Γ) (Operand (llvmType t *))
-addVar t p = do p ← allocate t
-                modify (addVar' p)
-                pure p
-  where addVar' : Operand (llvmType t *) → CMState (Δ ∷ Γ) → CMState (((id , t) ∷ Δ) ∷ Γ)
-        addVar' x (cMS g v t l (     δ  ∷ γ) block₁) =
-                   cMS g v t l ((x ∷ δ) ∷ γ) block₁ 
+withNewVar : Operand (llvmType t) → (id : Id) → CM (((id , t) ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
+withNewVar {t = t} x _ m = do v ← varC <$> get
+                              let p = local $ ident ("v" ++ showℕ v)
+                              modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
+                                                            ; varC  = suc (varC s)}
+                              s ← get
+                              let (s' , a) = runState m (addVar p s)
+                              put (removeVar s')
+                              pure a
 
+inNewBlock : CM ([] ∷ Γ) A → CM Γ A
+inNewBlock m = do x ← get
+                  let (x' , a) = runState m (addBlock x)
+                  put (removeBlock x')
+                  pure a
 
-inNewBlock : CM ([] ∷ Γ) (Γ' ) A → CM Γ Γ A
-inNewBlock m (cMS g v t l ctx b) =
-  let (mkIdentity (x , cMS g' v' t' l' _   b')) = m (cMS g v t l ([] ∷ ctx) b)
-  in   mkIdentity (x , cMS g' v' t' l' ctx b')
-
-newLabel : CM Γ Γ Label
+newLabel : CM Γ Label
 newLabel = do l ← labelC <$> get 
               modify λ s → record s {labelC = suc (labelC s)}
               pure $ ident ("L" ++ showℕ l)
 
-putLabel : Label → CM Γ Γ ⊤
+putLabel : Label → CM Γ ⊤
 putLabel l = modify λ s → record s {block = label l ∷ block s}
 
 -- Used for lazy evaluation of ||, &&.
 -- Should be removed during simplification
-curentLabel : CM Γ Γ Label
+curentLabel : CM Γ Label
 curentLabel = do l ← newLabel
                  emit (jmp l)
                  putLabel l
@@ -185,15 +197,15 @@ module _ (σ : SymTab Σ) where
   open Typed 
   open Valid 
 
-  compileExp : (e : Exp Σ Γ t) → CM Γ Γ (Operand (llvmType t)) 
+  compileExp : (e : Exp Σ Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
-  compileExp (EId id x) = emitTmp =<< load <$> getPtr x
+  compileExp (EId id x)        = emitTmp =<< load <$> getPtr x
   compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
-  compileExp (EMod     x    y) = emitTmp =<< srem        <$> compileExp x <*> compileExp y
-  compileExp (EOrd   p x op y) = emitTmp =<< cmp (fromOrd p)    op' <$> compileExp x <*> compileExp y
+  compileExp (EMod     x    y) = emitTmp =<< srem                  <$> compileExp x <*> compileExp y
+  compileExp (EOrd   p x op y) = emitTmp =<< cmp   (fromOrd p) op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { <  → RelOp.lTH ; <= → RelOp.lE
                              ; >  → RelOp.gTH ; >= → RelOp.gE }
-  compileExp (EEq    p x op y) = emitTmp =<< cmp (fromEq p)    op' <$> compileExp x <*> compileExp y
+  compileExp (EEq    p x op y) = emitTmp =<< cmp   (fromEq  p) op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { == → RelOp.eQU ; != → RelOp.nE }
 
   compileExp (ELogic x op y) = do mid ← newLabel
@@ -212,9 +224,8 @@ module _ (σ : SymTab Σ) where
                                   putLabel end
                                   emitTmp (phi ((x' , postx) ∷ (y' , posty) ∷ []))
 
-  compileExp (ENeg p e) = do e' ← compileExp e
-                             emitTmp (arith (fromNum p) ArithOp.* e' (const (negOne p)))
-  compileExp (ENot e) = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
+  compileExp (ENeg p e) = emitTmp =<< arith (fromNum p) ArithOp.- (const (toZero p)) <$> compileExp e
+  compileExp (ENot e)   = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
   compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
                                 let id = ident ("str" ++ showℕ c)
                                 let gs = gS (suc c) ((id , fromList x ++ "\00") ∷ strs)
@@ -222,73 +233,77 @@ module _ (σ : SymTab Σ) where
                                 operand ← emitTmp (getStr (suc (length (fromList x))) id)
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
-    where mapCompileExp : TList (Exp Σ Γ) ts → CM Γ Γ (TList Operand (llvmTypes ts))
+    where mapCompileExp : TList (Exp Σ Γ) ts → CM Γ (TList Operand (llvmTypes ts))
           mapCompileExp [] = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 
 
-  compileStm  : (s  : Stm  Σ t Γ) → CM Γ (nextCtx Σ t s)  ⊤
-  compileStms : (ss : Stms Σ t Γ) → CM Γ (lastCtx Σ t ss) ⊤
-  compileStm (SExp x) = ignore (compileExp x)
-  compileStm (SDecl t id x p) = do x' ← compileExp x
-                                   emit =<< store x' <$> addVar t p
-  compileStm (SAss id e x)    = emit =<< store <$> compileExp e <*> getPtr x
-  compileStm (SWhile x ss) = do preCond ← newLabel
-                                loop    ← newLabel
-                                end     ← newLabel
+  -- compileStms returns true if it encountered a return
+  -- This is used to return early
+  compileStms  : (ss : Stms  Σ t Γ) → CM Γ Bool
+  compileStms SEmpty = pure false
+  compileStms (SExp x SCons ss) = do compileExp x
+                                     compileStms ss
+  compileStms (SDecl t id x p SCons ss) = do x' ← compileExp x
+                                             withNewVar x' id $ compileStms ss
+  compileStms (SAss id e x SCons ss)    = do emit =<< store <$> compileExp e <*> getPtr x
+                                             compileStms ss
+  compileStms (SWhile x s  SCons ss) = do preCond ← newLabel
+                                          loop    ← newLabel
+                                          end     ← newLabel
 
-                                emit (jmp preCond)
-                                putLabel preCond
-                                x' ← compileExp x
-                                emit (branch x' loop end)
+                                          emit (jmp preCond)
+                                          putLabel preCond
+                                          x' ← compileExp x
+                                          emit (branch x' loop end)
 
-                                putLabel loop
-                                inNewBlock $ compileStms ss
-                                emit (jmp preCond) 
-                                putLabel end 
-  compileStm (SBlock x) = inNewBlock (compileStms x)
-  compileStm (SIfElse x t f) = do true  ← newLabel
-                                  false ← newLabel
-                                  end   ← newLabel
+                                          putLabel loop
+                                          inNewBlock (compileStms s >> emit (jmp preCond))
+                                          putLabel end
+                                          compileStms ss
+  compileStms (SBlock s SCons ss) = do b ← inNewBlock $ compileStms s
+                                       if b then pure true
+                                            else compileStms ss
+  compileStms (SIfElse x t f SCons ss) = do trueL  ← newLabel
+                                            falseL ← newLabel
+                                            end    ← newLabel
 
-                                  x' ← compileExp x
-                                  emit (branch x' true false)
-                                  putLabel true ; inNewBlock $ compileStms t; emit (jmp end)
-                                  putLabel false; inNewBlock $ compileStms f; emit (jmp end)
-                                  putLabel end
-  compileStm (SReturn vRet)    = emit (vret)
-  compileStm (SReturn (Ret x)) = do x' ← compileExp x
-                                    emit (ret x')
+                                            x' ← compileExp x
+                                            emit (branch x' trueL falseL)
+                                            putLabel trueL
+                                            tRet  ← inNewBlock $ compileStms t
+                                            unless tRet $ emit (jmp end)
 
-  compileStms SEmpty       = pure tt
-  compileStms (s SCons ss) = compileStm  s >> compileStms ss
+                                            putLabel falseL
+                                            fRet ← inNewBlock $ compileStms f
+                                            unless fRet $ emit (jmp end)
+
+                                            if tRet ∧ fRet then pure true
+                                                            else do putLabel end
+                                                                    compileStms ss
+  compileStms (SReturn vRet SCons _)    = do emit vret
+                                             pure true
+  compileStms (SReturn (Ret x) SCons _) = do x' ← compileExp x
+                                             emit (ret x')
+                                             pure true
 
 
   compileFun : GlobalState → Def Σ ts t → (FunDef (llvmSym Σ) (llvmTypes ts) (llvmType t) × GlobalState)
-  compileFun glob def = map₂ globalS (runCM compileBody (initState glob))
+  compileFun glob def = let s , f = runCM compileBody (initState glob)
+                        in f , globalS s
     where open Def def
-          initBlock : Unique Δ → CM ([] ∷ []) (Δ ∷ []) ⊤
-          initBlock  []       = pure tt
-          initBlock (_∷_ {id} x p) = do initBlock p
-                                        v ← addVar _ x
-                                        emit $ store (local id) v
+          withInitBlock : Unique Δ → CM ((Δ ++r Δ') ∷ []) A → CM (Δ' ∷ []) A
+          withInitBlock [] m = m
+          withInitBlock (_∷_ {id} p xs) m = withNewVar (local id) id (withInitBlock xs m)
 
-          -- There should be a better way to ensure that we do not
-          -- generate empty labels from returning ifs.
-          addUnreachable : Code → Code
-          addUnreachable (label x ∷ c) = unreachable ∷ label x ∷ c
-          addUnreachable c = c
-
-          compileBody : CM ([] ∷ []) (lastCtx _ _ body) (FunDef _ _ _)
+          compileBody : CM ([] ∷ []) (FunDef _ _ _)
           compileBody = do putLabel (ident "entry")
-                           initBlock unique
-                           compileStms body
-                           body ← addUnreachable ∘ block <$> get
-                           pure (record { idents = idents
-                                        ; body = body
-                                        -- ; voidparam = {!!} -- voidparam
-                                        -- ; uniqueParams = {!!}
-                                        })
+                           withInitBlock unique do
+                                 compileStms body
+                                 body ← block <$> get
+                                 pure (record { idents = idents
+                                              ; body = body
+                                              })
 
   compileFuns : {Σ' : OldSymbolTab} → FunList Σ Σ' → GlobalState → (FunList' (llvmSym Σ) (llvmSym Σ') × GlobalState)
   compileFuns []           g = [] , g
@@ -305,7 +320,6 @@ compileProgram p =
                      ; Defs    = llvmSym Defs
                      ; Strings = strings globState
                      ; hasDefs = help defs
-                     -- ; uniqueDefs = {!!} -- uniqueDefs
                      }
   where open Program p
         mkSymTab : Unique Σ → SymTab Σ
@@ -316,14 +330,13 @@ compileProgram p =
         help x rewrite llvmSymHom BuiltIn Defs = x
 
 
-
 -- printing llvm code
 module _ where
 
   pType : Type → String
   pType (lint n)  = "i" ++ showℕ (suc n)
   pType float = "double"
-  pType void = "void"
+  pType void  = "void"
   pType (t *) = pType t ++ "*"
   pType (fun t ts) = pType t ++ " (" ++ pList ts ++ ")"
     where pList : List Type → String
@@ -343,14 +356,10 @@ module _ where
   pOperand {_} (global (ident x)) = "@" ++ x
 
   pPairOperand : (x y : Operand T) → String
-  pPairOperand x y = pOperand x ++ " , " ++ pOperand y
+  pPairOperand {T} x y = pType T ++ " " ++ pOperand x ++ " , " ++ pOperand y
 
-  pPtr' : Operand (T *) → String
-  pPtr' (local  (ident x)) = "%" ++ x
-  pPtr' (global (ident x)) = "@" ++ x
-
-  pPtr : Operand (T *) → String
-  pPtr {T} x = pType T ++ "* " ++ pPtr' x 
+  pTypeOper : Operand T → String
+  pTypeOper {T} x = pType T ++ " " ++ pOperand x
 
   pLabel : Label → String
   pLabel (ident x) = "label %" ++ x
@@ -376,23 +385,22 @@ module _ where
 
 
   pInst : Instruction T → String
-  pInst {T} x with pT ← pType T | x
-  ... | arith p op x y = unwords $ pArith p op ∷ pT      ∷ pPairOperand x y ∷ []
-  ... | cmp {t} p op x y = unwords $ pCmp p op   ∷ pType t ∷ pPairOperand x y ∷ []
-  ... | srem x y       = unwords $ "srem"      ∷ pT      ∷ pPairOperand x y ∷ []
-  ... | alloc t   = unwords $ "alloca" ∷ pT ∷ []
-  ... | load x    = unwords $ "load"   ∷ pT ∷ "," ∷ pPtr x ∷ []
-  ... | store o p = unwords $ "store"  ∷ pT ∷ pOperand o ∷ "," ∷ pPtr p ∷ []
+  pInst {T} inst with inst
+  ... | arith p op x y = unwords $ pArith p op ∷ pPairOperand x y ∷ []
+  ... | cmp   p op x y = unwords $ pCmp   p op ∷ pPairOperand x y ∷ []
+  ... | srem       x y = unwords $ "srem"      ∷ pPairOperand x y ∷ []
+  ... | alloc t        = unwords $ "alloca" ∷ pType t     ∷ []
+  ... | load x         = unwords $ "load"   ∷ pType T     ∷ "," ∷ pTypeOper x ∷ []
+  ... | store o p      = unwords $ "store"  ∷ pTypeOper o ∷ "," ∷ pTypeOper p ∷ []
   ... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
-  ... | call x xs = unwords $ "call"   ∷ pT ∷ ( pOperand x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
+  ... | call x xs = unwords $ "call"   ∷ (pTypeOper x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
   ... | getStr n (ident x) = unwords $ "getelementptr [" ∷ showℕ n ∷ "x i8], [" ∷ showℕ n ∷ "x i8]*" ∷ ("@" ++ x) ∷ ", i32 0, i32 0" ∷ []
-  ... | phi x     = unwords $ "phi"    ∷ pT ∷ intersperse ", " (pPhi x) ∷ []
-  ... | jmp x = unwords $ "br" ∷ pLabel x ∷ []
+  ... | phi x  = unwords $ "phi" ∷ pType T ∷ intersperse ", " (pPhi x) ∷ []
+  ... | vret   = unwords $ "ret" ∷ "void" ∷ []
+  ... | ret x  = unwords $ "ret" ∷ pTypeOper x ∷ []
+  ... | jmp x  = unwords $ "br"  ∷ pLabel x ∷ []
   ... | branch x t f =  unwords $ "br" ∷ "i1" ∷ pOperand x ∷ "," ∷ pLabel t ∷ "," ∷ pLabel f ∷ []
-  ... | vret  = unwords $ "ret"  ∷ "void" ∷ []
-  ... | ret x = unwords $ "ret"  ∷ pT ∷ pOperand x ∷ []
-  ... | unreachable = unwords $ "unreachable" ∷ []
-  ... | label (ident x) = "error: lables should have been handled in pCode" -- x ++ ":"
+  ... | label (ident x) = "error: lables should have been handled in pCode"
 
   -- Should maybe reverse the order of code when compiling
   pCode : Code → String

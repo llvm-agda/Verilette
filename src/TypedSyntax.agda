@@ -5,7 +5,7 @@ import Data.Integer as Int
 import Data.Float   as Doub
 
 open import Data.Product using (_×_; _,_)
-open import Data.List using (List; _∷_ ; [] ; zip ; _++_)
+open import Data.List using (List; _∷_ ; [] ; zip ; _++_; reverse)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
@@ -99,6 +99,12 @@ data NonVoid : (T : Type) → Set where
   NonVoidDoub : NonVoid doub
   NonVoidBool : NonVoid bool
 
+toZero : NonVoid T → toSet T
+toZero {.int}  NonVoidInt  = Int.0ℤ
+toZero {.doub} NonVoidDoub = 0.0
+toZero {.bool} NonVoidBool = Bool.false
+
+
 data Return (P : (Type → Set)) : Type -> Set where
   vRet : Return P void
   Ret : P t -> Return P t
@@ -171,7 +177,7 @@ record Def (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   params = zip idents Ts
 
   field
-    body      : Stms Σ T (params ∷ [])
+    body      : Stms Σ T (reverse params ∷ [])
     voidparam : All (_≢ void) Ts
     unique    : Unique params
     return    : returnStms body
@@ -191,5 +197,4 @@ record Program : Set where
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     hasDefs    : FunList Σ' Defs
     uniqueDefs : Unique Σ'
-
 

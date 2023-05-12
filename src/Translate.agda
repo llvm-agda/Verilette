@@ -26,11 +26,6 @@ open Statements Σ
 open WellTyped.Return
 
 
-toZero : NonVoid T → toSet T
-toZero {.int}  NonVoidInt  = Int.0ℤ
-toZero {.doub} NonVoidDoub = 0.0
-toZero {.bool} NonVoidBool = Bool.false
-
 -- Every well typed expression can be transformed into our representation
 toExp : Γ ⊢ e ∶ T → Exp Γ T
 toExp (eVar id x p) = EId id x
@@ -86,8 +81,3 @@ cond x s       SCons' ss = SIfElse (toExp x) (s SCons' SEmpty) SEmpty      SCons
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' SEmpty) (f SCons' SEmpty) SCons ss
 while x s      SCons' ss = SWhile (toExp x) (s SCons' SEmpty) SCons ss
 sExp x         SCons' ss = SExp (toExp x) SCons ss
-
-
-
--- checkToStms : ∀ Δ Γ → (ss : List Stmt) → TCM (TS.Valid.Stms T Σ (Δ ∷ Γ))
--- checkToStms {T = T} Δ Γ ss = toStms ∘ proj₂ <$> checkStms T (Δ ∷ Γ) ss 

@@ -16,7 +16,7 @@ open import Data.String using (String; _≟_; _++_ )
 open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left renaming (monad to monadSum)
 open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
-open import Data.List using (List; _∷_ ; []; map; zip; unzipWith) renaming (_++_ to _+++_)
+open import Data.List using (List; _∷_ ; []; map; zip; unzipWith; reverse) renaming (_++_ to _+++_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Function using (case_of_)
@@ -56,7 +56,7 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
     eqLists ts ts'
     let params = zip ids ts
     unique  ← checkUnique params
-    _ , ss' ← checkStms (params ∷ []) b 
+    _ , ss' ← checkStms (reverse params ∷ []) b
     returns ← CH.checkReturn ss'
     pparam  ← checkAll (_=/= void) ts
     pure (record { idents    = ids

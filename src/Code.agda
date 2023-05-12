@@ -65,9 +65,9 @@ data Instruction : (T : Type) → Set where
   arith  : FirstClass T → ArithOp → (x y : Operand T) → Instruction T
   cmp    : FirstClass T → RelOp   → (x y : Operand T) → Instruction i1
   srem   : (x y : Operand i32) → Instruction i32 -- signed modulo
-  alloc  : (T : Type) → Instruction T
+  alloc  : (T : Type) → Instruction (T *)
   load   : Operand (T *) → Instruction T
-  store  : Operand T → Operand (T *) → Instruction T
+  store  : Operand T → Operand (T *) → Instruction void
   call   : Operand (fun T Ts) → TList Operand Ts → Instruction T
   getStr : (len : ℕ) → Id → Instruction (i8 *) -- getElemPtr specified to Strings
   phi    : List (Operand T × Label) → Instruction T
@@ -76,8 +76,7 @@ data Instruction : (T : Type) → Set where
   jmp    : (l : Label) → Instruction void
   branch : Operand i1 → (t f : Label) → Instruction void
   vret   : Instruction void
-  ret    : Operand T → Instruction T
-  unreachable : Instruction void
+  ret    : Operand T → Instruction void
 
   label  : Label → Instruction void
 

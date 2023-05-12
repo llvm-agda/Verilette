@@ -1,6 +1,7 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 
 open import Agda.Builtin.Equality using (refl; _≡_)
+open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_)
 
@@ -10,7 +11,7 @@ open import Data.List.Properties using (ʳ++-defn)
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import Util 
 open import TypedSyntax Ident as TS using (SymbolTab; Ctx; Num; Ord; Eq
-                                          ; Γ; Δ; Δ')
+                                          ; Γ; Δ; Δ'; Δ'')
 open import WellTyped 
 open import CheckExp 
 
@@ -92,7 +93,7 @@ module ReturnsProof (Σ : SymbolTab) where
 
   open Javalette.AST.Item
 
-  open import Translate Σ using (toExp; toStms; _SCons'_; toDecls; toZero)
+  open import Translate Σ using (toExp; toStms; _SCons'_; toDecls)
 
 
   returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid t)
@@ -130,3 +131,58 @@ module ReturnsProof (Σ : SymbolTab) where
   returnProof (there {s' = s'} {ss' = ss'} x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
   returnProof (here x) = returnProofHere  x
   returnProof vEnd     = SHead SReturn
+
+
+
+  returnProofReverseDecl : ∀ {T t is} {ssT : Stms T _} {n : TS.NonVoid t} {is' : DeclP Σ t is (Δ ∷ Γ) Δ''}
+                                → ¬ TS.returnStms ssT → ¬ TS.returnStms (decl t n is' SCons' ssT)
+  returnProofReverseDecl  p = {!!}
+
+  noReturns'Decl : ∀ {T t id p} {e : Exp (Δ ∷ Γ) t}
+                        → ¬ (TS.returnStm {T = T} (SDecl t id e p))
+  noReturns'Decl ()
+
+  returnProofReverse : ∀ {T ss} {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → TS.returnStms (toStms ssT) → Returns ssT
+  returnProofThereReverse : ∀ {T s} {sT : _⊢_⇒_ T (Δ ∷ Γ) s Δ'} → TS.returnStms (sT SCons' SEmpty) → Returns' sT
+  returnProofThereReverse {sT = bStmt x₁} (SHead (SBlock x)) = bStmt (returnProofReverse x)
+  -- returnProofThereReverse {sT = decl t x₁ x₂} x with () ← returnProofReverseDecl {n = x₁} {is' = x₂} test
+  returnProofThereReverse {sT = Statements.decl t x₁ (_∷_ {i = noInit x₂} p is)} x = {!!}
+  returnProofThereReverse {sT = Statements.decl t x₁ (_∷_ {i = init x₂ e} p is)} x = {!!}
+  returnProofThereReverse {sT = ass id x₁ x₂} (SHead ())
+  returnProofThereReverse {sT = ass id x₁ x₂} (SCon ())
+  returnProofThereReverse {sT = incr id x₁} (SHead ())
+  returnProofThereReverse {sT = incr id x₁} (SCon ())
+  returnProofThereReverse {sT = decr id x₁} (SHead ())
+  returnProofThereReverse {sT = decr id x₁} (SCon ())
+  returnProofThereReverse {sT = ret x₁} (SHead SReturn) = ret _
+  returnProofThereReverse {sT = vRet refl} (SHead SReturn) = vRet
+  returnProofThereReverse {sT = cond x₁ sT} (SHead (SIfElse x ()))
+  returnProofThereReverse {sT = condElse x₁ sT sT₁} (SHead (SIfElse x x₂)) = condElse (returnProofThereReverse x) (returnProofThereReverse x₂)
+  returnProofThereReverse {sT = while x₁ sT} (SHead ())
+  returnProofThereReverse {sT = while x₁ sT} (SCon ())
+  returnProofThereReverse {sT = sExp x₁} (SHead ())
+  returnProofThereReverse {sT = sExp x₁} (SCon ())
+
+  returnProofReverse {Γ = []} {T = void} {ssT = []} x = vEnd
+  returnProofReverse {Γ = x₁ ∷ Γ} {T = int} {ssT = []} ()
+  returnProofReverse {Γ = x₁ ∷ Γ} {T = doub} {ssT = []} ()
+  returnProofReverse {Γ = x₁ ∷ Γ} {T = bool} {ssT = []} ()
+  returnProofReverse {Γ = x₁ ∷ Γ} {T = void} {ssT = []} ()
+  returnProofReverse {Γ = x₁ ∷ Γ} {T = fun T ts} {ssT = []} ()
+  returnProofReverse {ssT = empty ∷ ssT} x = there (returnProofReverse x)
+  returnProofReverse {ssT = bStmt x₁ ∷ ssT} (SHead (SBlock x)) = here (bStmt (returnProofReverse x))
+  returnProofReverse {ssT = bStmt x₁ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = Statements.decl t x₁ is Statements.∷ ssT} x = {!!}
+  returnProofReverse {ssT = ass id x₁ x₂ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = incr id x₁ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = decr id x₁ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = ret x₁ ∷ ssT} (SHead SReturn) = here (ret _)
+  returnProofReverse {ssT = ret x₁ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {T = .void} {ssT = vRet refl ∷ ssT} (SHead SReturn) = here vRet
+  returnProofReverse {T = .void} {ssT = vRet refl ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = cond x₁ x₂ ∷ ssT} (SHead (SIfElse x ()))
+  returnProofReverse {ssT = cond x₁ x₂ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = condElse x₁ x₂ x₃ ∷ ssT} (SHead (SIfElse x x₄)) = here (condElse (returnProofThereReverse x) (returnProofThereReverse x₄))
+  returnProofReverse {ssT = condElse x₁ x₂ x₃ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = while x₁ x₂ ∷ ssT} (SCon x) = there (returnProofReverse x)
+  returnProofReverse {ssT = sExp x₁ ∷ ssT} (SCon x) = there (returnProofReverse x)
