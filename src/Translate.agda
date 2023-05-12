@@ -7,7 +7,7 @@ import Data.Bool    as Bool
 import Data.Integer as Int
 import Data.Float   as Doub
 
-open import Data.List using (List; _∷_; []; _++_) renaming (_ʳ++_ to _++r_)
+open import Data.List using (List; _∷_; []; _++_; [_]) renaming (_ʳ++_ to _++r_)
 open import Data.List.Properties using (ʳ++-defn)
 
 open import WellTyped
@@ -35,6 +35,9 @@ toExp eLitTrue      = EValue Bool.true
 toExp eLitFalse     = EValue Bool.false
 toExp (neg p x)     = ENeg p (toExp x)
 toExp (not x)       = ENot   (toExp x)
+toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
+toExp (eNewArray x) = ENewArr (toExp x)
+toExp (eLength x)   = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
 toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)
 toExp (eDiv p x y)       = EArith p (toExp x) ArithOp./  (toExp y)
@@ -73,6 +76,7 @@ _SCons'_ {Δ = Δ} (decl {Δ' = Δ'} t n is) ss rewrite sym (ʳ++-defn Δ' {Δ})
 empty          SCons' ss = ss
 bStmt x        SCons' ss = (SBlock (toStms x)) SCons ss
 ass id x e     SCons' ss = SAss id (toExp e) x SCons ss
+assIdx arr i e SCons' ss = (SAssIdx (toExp arr) (toExp i) (toExp e)) SCons ss
 incr id x      SCons' ss = SAss id (EArith NumInt (EId id x) ArithOp.+ (EValue (Int.+ 1))) x SCons ss
 decr id x      SCons' ss = SAss id (EArith NumInt (EId id x) ArithOp.- (EValue (Int.+ 1))) x SCons ss
 ret x          SCons' ss = SReturn (Ret (toExp x)) SCons ss
@@ -80,4 +84,5 @@ vRet refl      SCons' ss = SReturn vRet            SCons ss
 cond x s       SCons' ss = SIfElse (toExp x) (s SCons' SEmpty) SEmpty      SCons ss
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' SEmpty) (f SCons' SEmpty) SCons ss
 while x s      SCons' ss = SWhile (toExp x) (s SCons' SEmpty) SCons ss
+for id e s     SCons' ss = SFor id (toExp e) (s SCons' SEmpty) SCons ss
 sExp x         SCons' ss = SExp (toExp x) SCons ss

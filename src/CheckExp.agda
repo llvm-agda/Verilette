@@ -1,10 +1,12 @@
 
 open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
-open import Data.String using (_≟_)
+open import Data.String using (_≟_) renaming (_++_ to _++s_)
+
+open import Function using (_$_)
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
-open import Data.List using (List; _∷_; []; zip; _++_; reverse) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
+open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Relation.Unary.All using (All; reduce); open All
 
 open import Agda.Builtin.Bool using (true; false)
@@ -50,7 +52,19 @@ module CheckExp (Γ : Ctx) where
   infer (eLitDoub x) = pure (eLitDoub x ::: doub)
   infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
   infer (eLitFalse ) = pure (eLitFalse ::: bool)
-  infer (eString x) = error "encountered string outside of printString"
+  infer (eString x)  = error "Encountered string outside of printString"
+  infer (eIndex e i) = do i' ::: int ← infer i
+                            where i' ::: _ → error "Tried to index with non int expression"
+                          e' ::: array t ← infer e
+                            where e' ::: _ → error "Tried to index non array expression"
+                          pure (eIndex e' i' ::: t)
+  infer (eNewArray t e) = do e' ::: int ← infer e
+                                where e' ::: _ → error "Size of new array must be of type int"
+                             pure (eNewArray e' ::: array t)
+  infer (eAttrib e (ident "length")) = do e' ::: array t  ← infer e
+                                             where e' ::: _ → error "Only arrays have length attribute"
+                                          pure (eLength e' ::: int)
+  infer (eAttrib e (ident x₁)) = error $ "Found non-legal attribute: " ++s x₁
   infer (neg e) = do e' ::: t ← infer e
                      p ← ifNum t
                      pure (neg p e' ::: t)
@@ -114,6 +128,10 @@ module CheckStatements (T : Type) where
   check Γ (ass x e) = do inScope t p ← lookupCtx x Γ
                          e' ← checkExp Γ t e
                          pure ([] , ass x p e')
+  check Γ (assIdx arr i x) = do i'     ← checkExp Γ int i
+                                t , x' ← infer Γ x
+                                arr'   ← checkExp Γ (array t) arr
+                                pure ([] , assIdx arr' i' x')
   check Γ (incr x) = do inScope int p ← lookupCtx x Γ
                           where _ → error "Can not increment non-int type"
                         pure ([] , incr x p)
@@ -134,6 +152,9 @@ module CheckStatements (T : Type) where
   check Γ (while e s) = do e' ← checkExp Γ bool e
                            _ , s' ← check ([] ∷ Γ) s
                            pure ([] , while e' s')
+  check Γ (for t id e s) = do e' ← checkExp Γ (array t) e
+                              _ , s' ← check ([ id , t ] ∷ Γ) s
+                              pure ([] , (for id e' s'))
   check Γ (sExp e) = do e' ← checkExp Γ void e
                         pure ([] , sExp e')
   check Γ (decl t is) with Γ

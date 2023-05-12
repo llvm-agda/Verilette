@@ -75,27 +75,31 @@ ifEq : (T : Type) → TCM (Eq T)
 ifEq bool       = pure EqBool
 ifEq int        = pure EqInt
 ifEq doub       = pure EqDouble
+ifEq (array _)  = error "Array is not Eq type"
 ifEq void       = error "Void is not Eq type"
 ifEq (fun T ts) = error "Function is not Eq type"
 
 ifOrd : (T : Type) → TCM (Ord T)
-ifOrd bool   = error "Bool is not Ord type"
-ifOrd int    = pure OrdInt
-ifOrd doub   = pure OrdDouble
-ifOrd void   = error "Void is not Ord type"
+ifOrd bool       = error "Bool is not Ord type"
+ifOrd int        = pure OrdInt
+ifOrd doub       = pure OrdDouble
+ifOrd (array _)  = error "Array is not Ord type"
+ifOrd void       = error "Void is not Ord type"
 ifOrd (fun T ts) = error "Function is not Ord type"
 
 ifNum : (T : Type) → TCM (Num T)
-ifNum bool   = error "Bool is not nmeric"
-ifNum int    = pure NumInt
-ifNum doub   = pure NumDouble
-ifNum void   = error "Void is not numeric"
+ifNum bool       = error "Bool is not nmeric"
+ifNum int        = pure NumInt
+ifNum doub       = pure NumDouble
+ifNum (array _)  = error "Array is not Num type"
+ifNum void       = error "Void is not numeric"
 ifNum (fun T ts) = error "Function is not Num type"
 
 ifNonVoid : (T : Type) → TCM (NonVoid T)
 ifNonVoid bool       = pure NonVoidBool
 ifNonVoid int        = pure NonVoidInt
 ifNonVoid doub       = pure NonVoidDoub
+ifNonVoid (array t)  = NonVoidArray <$> ifNonVoid t
 ifNonVoid void       = error "Void is not-nonVoid"
 ifNonVoid (fun T ts) = error "Function is not-nonVoid"
 
@@ -105,26 +109,39 @@ int  =T= int  = inj₁ refl
 int  =T= doub = inj₂ (λ ())
 int  =T= bool = inj₂ (λ ())
 int  =T= void = inj₂ (λ ())
+int  =T= (array _) = inj₂ (λ ())
 int  =T= fun b ts = inj₂ (λ ())
 doub =T= int = inj₂ (λ ())
 doub =T= doub = inj₁ refl
 doub =T= bool = inj₂ (λ ())
 doub =T= void = inj₂ (λ ())
+doub =T= (array _) = inj₂ (λ ())
 doub =T= fun b ts = inj₂ (λ ())
 bool =T= int = inj₂ (λ ())
 bool =T= doub = inj₂ (λ ())
 bool =T= bool = inj₁ refl
 bool =T= void = inj₂ (λ ())
+bool =T= (array _) = inj₂ (λ ())
 bool =T= fun b ts = inj₂ (λ ())
 void =T= int = inj₂ (λ ())
 void =T= doub = inj₂ (λ ())
 void =T= bool = inj₂ (λ ())
 void =T= void = inj₁ refl
+void =T= (array _) = inj₂ λ ()
 void =T= fun b ts = inj₂ (λ ())
+array x =T= int  = inj₂ (λ ())
+array x =T= doub = inj₂ (λ ())
+array x =T= bool = inj₂ (λ ())
+array x =T= void = inj₂ (λ ())
+array x =T= fun y ts = inj₂ (λ ())
+array x =T= array y with x =T= y
+... | inj₁ refl = inj₁ refl
+... | inj₂ p    = inj₂ (λ {refl → p refl})
 fun a ts =T= int = inj₂ (λ ())
 fun a ts =T= doub = inj₂ (λ ())
 fun a ts =T= bool = inj₂ (λ ())
 fun a ts =T= void = inj₂ (λ ())
+fun a ts =T= (array _) = inj₂ (λ ())
 fun a as =T= fun b bs with eqLists' (a ∷ as) (b ∷ bs)
 ... | inj₁ refl = inj₁ refl
 ... | inj₂ p    = inj₂ λ {refl → p refl}

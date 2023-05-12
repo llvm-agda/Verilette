@@ -6,7 +6,7 @@ open import Javalette.Parser using (Err; parseProg)
 open import Data.String
 open import TypeChecker
 open import TypeCheckerMonad using (TCM)
-open import Compile using (compileProgram; pProgram)
+-- open import Compile using (compileProgram; pProgram)
 open import Data.Sum.Base
 open import Agda.Builtin.IO
 open import Agda.Builtin.String
@@ -42,10 +42,9 @@ main = do
     Err.bad s → do hPutStrLn stderr "ERROR"
                    hPutStrLn stderr "Parse Failed"
                    exitFailure
-  -- catchError (typeCheck builtin result)
   inj₂ y ← return (typeCheck builtin result) where
     inj₁ s → do hPutStrLn stderr "ERROR"
                 hPutStrLn stderr s
                 exitFailure
-  hPutStrLn stdout (pProgram (compileProgram y))
+  -- hPutStrLn stdout (pProgram (compileProgram y))
   hPutStrLn stderr "OK"

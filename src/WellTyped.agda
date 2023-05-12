@@ -9,7 +9,7 @@ open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
-open import Data.List using (List; _∷_; []; zip; _++_; reverse) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
+open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Properties using (ʳ++-defn)
 
 open import Data.Empty using (⊥)
@@ -78,6 +78,10 @@ module Expression (Σ : SymbolTab) where
     eDiv : Num T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eMul x div y ∶ T
     eAdd : Num T → (op : _) → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eAdd x op y ∶ T
 
+    eIndex    : ∀ {t arr i} →  Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ eIndex arr i ∶ t
+    eNewArray : ∀ {t n}     →  Γ ⊢ n   ∶ int     →  Γ ⊢ eNewArray t n ∶ array t
+    eLength   : ∀ {e t}     →  Γ ⊢ e   ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
+
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
     eEq  : ∀ {op} → EqOp  op → Eq  T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
 
@@ -114,18 +118,20 @@ module Statements (Σ : SymbolTab) (T : Type) where
 
   data _⊢_⇒⇒_ (Γ : Ctx) : List Stmt → Block → Set
   data _⊢_⇒_  (Γ : Ctx) :      Stmt → Block → Set where
-    empty : Γ ⊢ empty ⇒ []
-    bStmt : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
-    decl : ∀ t {is} → NonVoid t → DeclP Σ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
-    ass  : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass id e ⇒ []
-    incr : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
-    decr : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
-    ret  : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []
-    vRet : T ≡ void    →  Γ ⊢ vRet  ⇒ []
+    empty  : Γ ⊢ empty ⇒ []
+    sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
+    bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
+    decl   : ∀ t {is} → NonVoid t → DeclP Σ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
+    ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass id e ⇒ []
+    assIdx : ∀ {t arr i x} → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ assIdx arr i x ⇒ []
+    incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
+    decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
+    ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []
+    vRet   : T ≡ void    →  Γ ⊢ vRet  ⇒ []
     cond     : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Δ  →                       Γ ⊢ cond     e s   ⇒ []
     condElse : ∀ {t f} → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ t ⇒ Δ  →  ([] ∷ Γ) ⊢ f ⇒ Δ' →  Γ ⊢ condElse e t f ⇒ []
     while    : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Δ →                        Γ ⊢ while e s ⇒ []
-    sExp : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
+    for      : ∀ {t e s} id →  Γ ⊢ e ∶ array t  →  ([ id , t ] ∷ Γ) ⊢ s ⇒ Δ'  →  Γ ⊢ for t id e s ⇒ []
     
   data _⊢_⇒⇒_ Γ where
     []  : Γ ⊢ [] ⇒⇒ []

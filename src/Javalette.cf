@@ -6,11 +6,19 @@ Program.   Prog ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Blk ;
 
+-- TypeDef.   TopDef ::= "typedef" "struct" Type Type ";" ;
+
+-- Struct.    TopDef ::= "struct" Ident "{" [Field] "}" ";" ;
+
 separator nonempty TopDef "" ;
 
-Argument.  Arg ::= Type Ident;
+Argument.  Arg ::= Type Ident ;
 
 separator  Arg "," ;
+
+FieldE.    Field ::= Type Ident ;
+
+terminator Field ";" ;
 
 -- statements ----------------------------------------------
 
@@ -32,6 +40,8 @@ separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
+AssIdx.    Stmt ::= Expr6 "[" Expr "]" "=" Expr  ";" ;
+
 Incr.      Stmt ::= Ident "++"  ";" ;
 
 Decr.      Stmt ::= Ident "--"  ";" ;
@@ -45,6 +55,8 @@ Cond.      Stmt ::= "if" "(" Expr ")" Stmt  ;
 CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
 
 While.     Stmt ::= "while" "(" Expr ")" Stmt ;
+
+For.       Stmt ::= "for" "(" Type Ident ":" Expr ")" Stmt ;
 
 SExp.      Stmt ::= Expr  ";" ;
 
@@ -60,6 +72,8 @@ Void.      Type ::= "void" ;
 
 internal   Fun. Type ::= Type "(" [Type] ")" ;
 
+Array.     Type ::= Type "[]" ;
+
 separator  Type "," ;
 
 -- Expressions ---------------------------------------------
@@ -74,13 +88,19 @@ ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
 
+EIndex.    Expr6 ::= Expr6 "[" Expr "]" ;
+
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
+
+ENewArray. Expr6 ::= "new" Type "[" Expr "]" ;
 
 EString.   Expr6 ::= String ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
 Not.       Expr5 ::= "!" Expr6 ;
+
+EAttrib.   Expr5 ::= Expr6 "." Ident ;
 
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 

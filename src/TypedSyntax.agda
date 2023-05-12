@@ -3,9 +3,10 @@ module TypedSyntax (Id : Set) where
 import Data.Bool    as Bool
 import Data.Integer as Int
 import Data.Float   as Doub
+import Data.Nat     as Nat
 
 open import Data.Product using (_×_; _,_)
-open import Data.List using (List; _∷_ ; [] ; zip ; _++_; reverse)
+open import Data.List using (List; _∷_ ; [] ; zip ; _++_; reverse; [_])
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
@@ -63,12 +64,15 @@ data Unique {A : Set} : (l : List (Id × A)) → Set where
 --------------------------------------------------------------------------------
 -- Basic defs
 
+Ptr = Nat.ℕ  -- What should be the type of Ptr?
+
 
 toSet : Type → Set
 toSet bool = Bool.Bool
 toSet int = Int.ℤ
 toSet doub = Doub.Float
 toSet void = ⊥
+toSet (array t) = Ptr
 toSet (fun t ts) = ⊥ -- toFun t ts
   where
     toFun : Type → List Type → Set
@@ -95,14 +99,16 @@ data Num : (T : Type) → Set where
   NumDouble : Num doub
 
 data NonVoid : (T : Type) → Set where
-  NonVoidInt  : NonVoid int
-  NonVoidDoub : NonVoid doub
-  NonVoidBool : NonVoid bool
+  NonVoidInt   : NonVoid int
+  NonVoidDoub  : NonVoid doub
+  NonVoidBool  : NonVoid bool
+  NonVoidArray : NonVoid t → NonVoid (array t)
 
 toZero : NonVoid T → toSet T
 toZero {.int}  NonVoidInt  = Int.0ℤ
 toZero {.doub} NonVoidDoub = 0.0
 toZero {.bool} NonVoidBool = Bool.false
+toZero (NonVoidArray x) = 0
 
 
 data Return (P : (Type → Set)) : Type -> Set where
@@ -114,16 +120,19 @@ data Return (P : (Type → Set)) : Type -> Set where
 -- EXPRESSIONS AND STATEMENTS
 module Typed (Σ : SymbolTab) where
   data Exp (Γ : Ctx) : Type → Set where
-    EValue : toSet T  → Exp Γ T
-    EId    : (id : Id) → (id , T) ∈' Γ → Exp Γ T
-    EAPP   : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
-    EArith : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
-    EMod   : Exp Γ int → Exp Γ int → Exp Γ int
-    EOrd   : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
-    EEq    : Eq T  → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
-    ELogic : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
-    ENeg   : Num T → Exp Γ T → Exp Γ T
-    ENot   : Exp Γ bool → Exp Γ bool
+    EValue  : toSet T  → Exp Γ T
+    EId     : (id : Id) → (id , T) ∈' Γ → Exp Γ T
+    EAPP    : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
+    EArith  : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
+    EMod    : Exp Γ int → Exp Γ int → Exp Γ int
+    EOrd    : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
+    EEq     : Eq T  → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
+    ELogic  : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
+    ENeg    : Num T → Exp Γ T → Exp Γ T
+    ENot    : Exp Γ bool → Exp Γ bool
+    EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
+    ENewArr : Exp Γ int → Exp Γ (array t)
+    ELength : Exp Γ (array t) → Exp Γ int
     EPrintStr : String → Exp Γ void
 
 
@@ -135,19 +144,24 @@ module Valid (Σ : SymbolTab) (T : Type) where
       SExp    : Exp Γ void → Stm Γ
       SDecl   : (t : Type) → (id : Id) → Exp (Δ ∷ Γ) t → id ∉ Δ → Stm (Δ ∷ Γ)
       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
+      SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
+      -- One could imagine replacing for with while, but that requires introducing new variables
+      SFor    : (id : Id) → Exp Γ (array t)  → Stms ([ id , t ] ∷ Γ) → Stm Γ 
       SBlock  : Stms ([] ∷ Γ) → Stm Γ
       SIfElse : Exp Γ bool → Stms ([] ∷ Γ) → Stms ([] ∷ Γ) → Stm Γ
       SReturn : Return (Exp Γ) T → Stm Γ
 
     nextCtx : {Γ : Ctx} → Stm Γ → Ctx
     nextCtx {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
-    nextCtx {Γ} (SExp x) = Γ
-    nextCtx {Γ} (SAss id e x) = Γ
-    nextCtx {Γ} (SWhile x x₁) = Γ
-    nextCtx {Γ} (SBlock x) = Γ
-    nextCtx {Γ} (SIfElse x x₁ x₂) = Γ
-    nextCtx {Γ} (SReturn x) = Γ
+    nextCtx {Γ} (SExp x)        = Γ
+    nextCtx {Γ} (SAss id e x)   = Γ
+    nextCtx {Γ} (SAssIdx a i e) = Γ
+    nextCtx {Γ} (SWhile x x₁)   = Γ
+    nextCtx {Γ} (SFor id e ss)  = Γ
+    nextCtx {Γ} (SBlock x)      = Γ
+    nextCtx {Γ} (SIfElse _ _ _) = Γ
+    nextCtx {Γ} (SReturn x)     = Γ
 
     data Stms (Γ : Ctx) : Set where
       SEmpty  : Stms Γ
