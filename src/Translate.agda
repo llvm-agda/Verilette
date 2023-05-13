@@ -18,12 +18,12 @@ open import TypedSyntax Ident
 -- Translating from WellTyped to TypedSyntax
 module Translate (Σ : SymbolTab) where
 
-open Typed Σ
-open Valid Σ
-
-open Expression Σ
+open Expression Σ renaming (WFNew to OldWFNew)
 open Statements Σ
 open WellTyped.Return
+
+open Typed Σ
+open Valid Σ
 
 
 -- Every well typed expression can be transformed into our representation
@@ -36,7 +36,10 @@ toExp eLitFalse     = EValue Bool.false
 toExp (neg p x)     = ENeg p (toExp x)
 toExp (not x)       = ENot   (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
-toExp (eNewArray x) = ENewArr (toExp x)
+toExp (eNew n)      = ENew (toNew n)
+  where toNew : ∀ {n t} → OldWFNew Γ n t → WFNew Γ n t
+        toNew (nType b)    = nType b
+        toNew (nArray n x) = nArray (toNew n) (toExp x)
 toExp (eLength x)   = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
 toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)

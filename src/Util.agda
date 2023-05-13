@@ -103,6 +103,15 @@ ifNonVoid (array t)  = NonVoidArray <$> ifNonVoid t
 ifNonVoid void       = error "Void is not-nonVoid"
 ifNonVoid (fun T ts) = error "Function is not-nonVoid"
 
+ifBasic : (T : Type) → TCM (Basic T)
+ifBasic bool       = pure BasicBool
+ifBasic int        = pure BasicInt
+ifBasic doub       = pure BasicDoub
+ifBasic (array _)  = error "Array is not Eq type"
+ifBasic void       = error "Void is not Eq type"
+ifBasic (fun T ts) = error "Function is not Eq type"
+
+
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
 eqLists' : (as : List Type) → (bs : List Type) → (as ≡ bs ⊎ as ≢ bs)
 int  =T= int  = inj₁ refl

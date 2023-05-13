@@ -14,7 +14,7 @@ open import Data.Empty using (⊥)
 open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
-open import Javalette.AST using (Type; String) 
+open import Javalette.AST using (Type; String; New; nType; nArray)
 open Type 
 
 variable
@@ -104,6 +104,11 @@ data NonVoid : (T : Type) → Set where
   NonVoidBool  : NonVoid bool
   NonVoidArray : NonVoid t → NonVoid (array t)
 
+data Basic : (T : Type) → Set where
+  BasicInt   : Basic int
+  BasicDoub  : Basic doub
+  BasicBool  : Basic bool
+
 toZero : NonVoid T → toSet T
 toZero {.int}  NonVoidInt  = Int.0ℤ
 toZero {.doub} NonVoidDoub = 0.0
@@ -119,7 +124,13 @@ data Return (P : (Type → Set)) : Type -> Set where
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
 module Typed (Σ : SymbolTab) where
-  data Exp (Γ : Ctx) : Type → Set where
+
+  data Exp (Γ : Ctx) : Type → Set
+  data WFNew (Γ : Ctx) : New → Type → Set where
+    nType : ∀ {t}      → Basic t                 → WFNew Γ (nType t) t
+    nArray : ∀ {e n t} → WFNew Γ n t → Exp Γ int → WFNew Γ (nArray n e) (array t)
+
+  data Exp Γ where
     EValue  : toSet T  → Exp Γ T
     EId     : (id : Id) → (id , T) ∈' Γ → Exp Γ T
     EAPP    : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
@@ -131,7 +142,7 @@ module Typed (Σ : SymbolTab) where
     ENeg    : Num T → Exp Γ T → Exp Γ T
     ENot    : Exp Γ bool → Exp Γ bool
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
-    ENewArr : Exp Γ int → Exp Γ (array t)
+    ENew    : ∀ {n t} → WFNew Γ n t → Exp Γ t
     ELength : Exp Γ (array t) → Exp Γ int
     EPrintStr : String → Exp Γ void
 

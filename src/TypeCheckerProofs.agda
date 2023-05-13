@@ -53,7 +53,7 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
   inferProof (not eT) rewrite inferProof eT = refl
   inferProof (eMod eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eIndex x x₁) rewrite inferProof x₁ rewrite inferProof x = refl
-  inferProof (eNewArray x) rewrite inferProof x = refl
+  inferProof (eNew x) = {!!}
   inferProof (eLength x)   rewrite inferProof x = refl
   inferProof (eMul Num.NumInt        eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eMul Num.NumDouble     eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl

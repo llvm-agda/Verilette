@@ -19,7 +19,7 @@ open import Function using (_$_; _∘_; case_of_; case_return_of_)
 open import Javalette.AST
 open import TypedSyntax Ident as TS using (Block; Ctx; SymbolTab;
                                            _∈'_; _∈_; _∉_;
-                                           Num; Eq; Ord; NonVoid;
+                                           Num; Eq; Ord; NonVoid; Basic;
                                            Γ; Δ; Δ'; T; Ts) 
 open NonVoid
 
@@ -57,8 +57,14 @@ data WFBlock : (Δ : Block) → Set where
 
 module Expression (Σ : SymbolTab) where
 
+
+  data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
+  data WFNew (Γ : Ctx) : New → Type → Set where
+    nType  : ∀ {t}     → Basic t → WFNew Γ (nType t) t
+    nArray : ∀ {e n t} → WFNew Γ n t → Γ ⊢ e ∶ int → WFNew Γ (nArray n e) (array t)
+
   -- Typing judgements 
-  data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set where
+  data _⊢_∶_ Γ where
     eLitInt   : ∀ x → Γ ⊢ eLitInt x ∶ int
     eLitDoub  : ∀ x → Γ ⊢ eLitDoub x ∶ doub
     eLitTrue  : Γ ⊢ eLitTrue ∶ bool
@@ -78,9 +84,9 @@ module Expression (Σ : SymbolTab) where
     eDiv : Num T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eMul x div y ∶ T
     eAdd : Num T → (op : _) → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eAdd x op y ∶ T
 
-    eIndex    : ∀ {t arr i} →  Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ eIndex arr i ∶ t
-    eNewArray : ∀ {t n}     →  Γ ⊢ n   ∶ int     →  Γ ⊢ eNewArray t n ∶ array t
-    eLength   : ∀ {e t}     →  Γ ⊢ e   ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
+    eIndex  : ∀ {t arr i} →  Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ eIndex arr i ∶ t
+    eNew    : ∀ {new t}   →  WFNew Γ new t      →  Γ ⊢ eNew new ∶ t
+    eLength : ∀ {e t}     →  Γ ⊢ e   ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
     eEq  : ∀ {op} → EqOp  op → Eq  T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool

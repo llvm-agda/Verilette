@@ -58,9 +58,15 @@ module CheckExp (Γ : Ctx) where
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
-  infer (eNewArray t e) = do e' ::: int ← infer e
-                                where e' ::: _ → error "Size of new array must be of type int"
-                             pure (eNewArray e' ::: array t)
+  infer (eNew new) = do new' ::: t ← inferNew new
+                        pure (eNew new' ::: t)
+        where inferNew : (n : New) → TCM (∃ (WFNew Γ n))
+              inferNew (nType t)    = do b ← ifBasic t
+                                         pure (nType b ::: t)
+              inferNew (nArray n e) = do n' ::: t ← inferNew n
+                                         e' ::: int ← infer e
+                                            where e' ::: _ → error "Tried to create a new array with non-int expression"
+                                         pure (nArray n' e' ::: array t)
   infer (eAttrib e (ident "length")) = do e' ::: array t  ← infer e
                                              where e' ::: _ → error "Only arrays have length attribute"
                                           pure (eLength e' ::: int)

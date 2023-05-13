@@ -92,7 +92,7 @@ EIndex.    Expr6 ::= Expr6 "[" Expr "]" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
-ENewArray. Expr6 ::= "new" Type "[" Expr "]" ;
+ENew.      Expr6 ::= "new" New ;
 
 EString.   Expr6 ::= String ;
 
@@ -111,6 +111,9 @@ ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
+
+NType.     New ::= Type ;
+NArray.    New ::= New "[" Expr "]" ;
 
 coercions  Expr 6 ;
 
