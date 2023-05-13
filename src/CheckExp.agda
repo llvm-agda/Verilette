@@ -61,8 +61,10 @@ module CheckExp (Γ : Ctx) where
   infer (eNew new) = do new' ::: t ← inferNew new
                         pure (eNew new' ::: t)
         where inferNew : (n : New) → TCM (∃ (WFNew Γ n))
-              inferNew (nType t)    = do b ← ifBasic t
-                                         pure (nType b ::: t)
+              inferNew (nType t  e)    = do b ← ifBasic t
+                                            e' ::: int ← infer e
+                                              where e' ::: _ → error "Tried to create a new array with non-int expression"
+                                            pure (nType b e' ::: array t)
               inferNew (nArray n e) = do n' ::: t ← inferNew n
                                          e' ::: int ← infer e
                                             where e' ::: _ → error "Tried to create a new array with non-int expression"

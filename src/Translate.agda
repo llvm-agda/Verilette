@@ -38,7 +38,7 @@ toExp (not x)       = ENot   (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eNew n)      = ENew (toNew n)
   where toNew : ∀ {n t} → OldWFNew Γ n t → WFNew Γ n t
-        toNew (nType b)    = nType b
+        toNew (nType  b x) = nType b (toExp x)
         toNew (nArray n x) = nArray (toNew n) (toExp x)
 toExp (eLength x)   = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)

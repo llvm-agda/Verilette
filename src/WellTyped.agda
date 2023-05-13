@@ -60,7 +60,7 @@ module Expression (Σ : SymbolTab) where
 
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
   data WFNew (Γ : Ctx) : New → Type → Set where
-    nType  : ∀ {t}     → Basic t → WFNew Γ (nType t) t
+    nType  : ∀ {t}     → Basic t     → Γ ⊢ e ∶ int → WFNew Γ (nType  t e) (array t)
     nArray : ∀ {e n t} → WFNew Γ n t → Γ ⊢ e ∶ int → WFNew Γ (nArray n e) (array t)
 
   -- Typing judgements 

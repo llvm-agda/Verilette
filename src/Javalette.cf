@@ -112,8 +112,8 @@ EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
 
-NType.     New ::= Type ;
-NArray.    New ::= New "[" Expr "]" ;
+NType.     New ::= Type "[" Expr "]" ;
+NArray.    New ::= New  "[" Expr "]" ;
 
 coercions  Expr 6 ;
 
