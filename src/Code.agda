@@ -28,6 +28,8 @@ data Type : Set where
   float : Type
   void : Type
   _* : Type → Type
+  struct : List Type → Type
+  -- array t = (struct (i32 ∷ t * ∷ [])) *
   fun : Type → List Type → Type
 
 variable
@@ -38,6 +40,7 @@ toSet : Type → Set
 toSet (lint zero)    = Bool
 toSet (lint (suc _)) = Int
 toSet float  = Float
+toSet (t *) = Ptr
 toSet _ = ⊥
 
 
@@ -69,8 +72,11 @@ data Instruction : (T : Type) → Set where
   load   : Operand (T *) → Instruction T
   store  : Operand T → Operand (T *) → Instruction void
   call   : Operand (fun T Ts) → TList Operand Ts → Instruction T
-  getStr : (len : ℕ) → Id → Instruction (i8 *) -- getElemPtr specified to Strings
   phi    : List (Operand T × Label) → Instruction T
+
+  getStr    : (len : ℕ) → Id → Instruction (i8 *) -- getElemPtr specified to Strings
+  getStruct : ∀ {t ts} → Operand (struct ts *) → t ∈ ts → Instruction (t *) -- getElemPtr specified to Structs
+  getArray  : ∀ {t} → Operand (struct (i32 ∷ t * ∷ []) *) → Operand i32 → Instruction (t *) -- getElemPtr specified to Array
 
   -- Terminators
   jmp    : (l : Label) → Instruction void

@@ -1,3 +1,5 @@
+{-# OPTIONS --allow-unsolved-metas #-}
+
 open import Data.Product using (_×_; _,_; ∃; map₂) renaming (proj₁ to fst; proj₂ to snd)
 open import Data.List using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
 open import Data.List.Relation.Unary.All using (All); open All
@@ -37,16 +39,18 @@ llvmType OldType.int  = i32
 llvmType OldType.doub = float
 llvmType OldType.bool = i1
 llvmType OldType.void = void
+llvmType (OldType.array t) = (struct (i32 ∷ llvmType t * ∷ [])) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 
 llvmTypes [] = []
 llvmTypes (x ∷ xs) = llvmType x ∷ llvmTypes xs
 
 toSetProof : (t : OldType) → oldToSet t ≡ toSet (llvmType t)
-toSetProof OldType.int = refl
+toSetProof OldType.int  = refl
 toSetProof OldType.doub = refl
 toSetProof OldType.bool = refl
 toSetProof OldType.void = refl
+toSetProof (OldType.array t) = refl
 toSetProof (OldType.fun t ts) = refl
 
 BlockList : Block → Set
@@ -138,8 +142,8 @@ emitTmp {T} x = do tmp ← tmpC <$> get
                    pure operand
 
 
-withNewVar : Operand (llvmType t) → (id : Id) → CM (((id , t) ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
-withNewVar {t = t} x _ m = do v ← varC <$> get
+withNewVar : (id : Id) → Operand (llvmType t)  → CM (((id , t) ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
+withNewVar {t = t} _ x m = do v ← varC <$> get
                               let p = local $ ident ("v" ++ showℕ v)
                               modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
                                                             ; varC  = suc (varC s)}
@@ -192,6 +196,11 @@ fromEq EqInt    = lint 31
 fromEq EqBool   = lint 0
 fromEq EqDouble = float
 
+sizeOfType : ∀ {t} → Basic t → toSet i32
+sizeOfType BasicInt  = pos 4
+sizeOfType BasicDoub = pos 4
+sizeOfType BasicBool = pos 1
+
 -- Compilation using a given SymTab σ
 module _ (σ : SymTab Σ) where
   open Typed 
@@ -226,6 +235,18 @@ module _ (σ : SymTab Σ) where
 
   compileExp (ENeg p e) = emitTmp =<< arith (fromNum p) ArithOp.- (const (toZero p)) <$> compileExp e
   compileExp (ENot e)   = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
+  compileExp (EIdx arr i) = do i' ← emitTmp =<< getArray <$> compileExp arr <*> compileExp i
+                               emitTmp (load i')
+  compileExp (ENew (nType {t} x n)) = do n' ← compileExp n
+                                         arr ← emitTmp (alloc (struct (i32 ∷ llvmType t * ∷ [])))
+                                         arr' ← emitTmp (getStruct arr (there (here refl))) -- index 1
+                                         t* ← emitTmp (call (global (ident "calloc")) (n' ∷ const {i32} (sizeOfType x) ∷ [])) -- should define calloc properly
+                                         emit (store t* arr')
+                                         pure arr
+  compileExp (ENew (nArray x n)) = {!!}
+  compileExp (ELength x)  = do x' ← compileExp x
+                               len ← emitTmp (getStruct x' (here refl)) -- index 0
+                               emitTmp (load len)
   compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
                                 let id = ident ("str" ++ showℕ c)
                                 let gs = gS (suc c) ((id , fromList x ++ "\00") ∷ strs)
@@ -238,6 +259,7 @@ module _ (σ : SymTab Σ) where
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 
 
+
   -- compileStms returns true if it encountered a return
   -- This is used to return early
   compileStms  : (ss : Stms  Σ t Γ) → CM Γ Bool
@@ -245,9 +267,34 @@ module _ (σ : SymTab Σ) where
   compileStms (SExp x SCons ss) = do compileExp x
                                      compileStms ss
   compileStms (SDecl t id x p SCons ss) = do x' ← compileExp x
-                                             withNewVar x' id $ compileStms ss
+                                             withNewVar id x' $ compileStms ss
   compileStms (SAss id e x SCons ss)    = do emit =<< store <$> compileExp e <*> getPtr x
                                              compileStms ss
+  compileStms (SAssIdx arr i x  SCons ss) = do x' ← compileExp x
+                                               i' ← emitTmp =<< getArray <$> compileExp arr <*> compileExp i
+                                               emit (store x' i')
+                                               compileStms ss
+  compileStms (SFor id arr s SCons ss) = do arr' ← compileExp arr
+                                            lenPtr ← emitTmp (getStruct arr' (here refl)) -- index 0
+                                            len ← emitTmp (load lenPtr)
+
+                                            iPtr ← emitTmp (alloc i32)
+                                            preCond ← newLabel
+                                            for     ← newLabel
+                                            end     ← newLabel
+
+                                            putLabel preCond
+                                            i'   ← emitTmp (load iPtr)
+                                            iter ← emitTmp (cmp i32 RelOp.lTH i' len)
+                                            emit (branch iter for end) -- while i < len
+                                            putLabel for
+                                            val ← emitTmp ∘ load =<< emitTmp (getArray arr' i')
+                                            sRet ← inNewBlock $ withNewVar id val (compileStms s)
+                                            unless sRet do i'' ← emitTmp (arith i32 + i' (const (pos 1)))
+                                                           emit (store i'' iPtr)
+                                                           emit (jmp preCond)
+                                            putLabel end
+                                            compileStms ss
   compileStms (SWhile x s  SCons ss) = do preCond ← newLabel
                                           loop    ← newLabel
                                           end     ← newLabel
@@ -294,7 +341,7 @@ module _ (σ : SymTab Σ) where
     where open Def def
           withInitBlock : Unique Δ → CM ((Δ ++r Δ') ∷ []) A → CM (Δ' ∷ []) A
           withInitBlock [] m = m
-          withInitBlock (_∷_ {id} p xs) m = withNewVar (local id) id (withInitBlock xs m)
+          withInitBlock (_∷_ {id} p xs) m = withNewVar id (local id) (withInitBlock xs m)
 
           compileBody : CM ([] ∷ []) (FunDef _ _ _)
           compileBody = do putLabel (ident "entry")
@@ -333,20 +380,24 @@ compileProgram p =
 -- printing llvm code
 module _ where
 
-  pType : Type → String
+  pType :      Type → String
+  pTypeList : List Type → String
   pType (lint n)  = "i" ++ showℕ (suc n)
   pType float = "double"
   pType void  = "void"
   pType (t *) = pType t ++ "*"
-  pType (fun t ts) = pType t ++ " (" ++ pList ts ++ ")"
-    where pList : List Type → String
-          pList [] = ""
-          pList (x ∷ []) = pType x
-          pList (y ∷ x ∷ xs) = pType y ++ ", " ++ pList (x ∷ xs)
+  pType (struct ts) = "{" ++ pTypeList ts ++ "}"
+  pType (fun t ts) = pType t ++ " (" ++ pTypeList ts ++ ")"
+
+  pTypeList [] = ""
+  pTypeList (x ∷ []) = pType x
+  pTypeList (y ∷ x ∷ xs) = pType y ++ ", " ++ pTypeList (x ∷ xs)
+
 
   pOperand : Operand T → String
   pOperand {T} (const x) with T
   ... | float = showℝ x
+  ... | t *   = "null"  -- is null the only ptr constant?
   ... | (lint n) with n
   ... | suc _ = showℤ x 
   ... | zero with x 
@@ -383,6 +434,9 @@ module _ where
     pPhi : List (Operand T × Id) → List String
     pPhi = map λ {(x , ident l) → "[ " ++ pOperand x ++ ", %" ++ l ++ " ]"}
 
+    pTypeDeptr : ∀ {t} → Operand (t *) → String
+    pTypeDeptr {t} x = pType t
+
 
   pInst : Instruction T → String
   pInst {T} inst with inst
@@ -395,6 +449,11 @@ module _ where
   ... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
   ... | call x xs = unwords $ "call"   ∷ (pTypeOper x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
   ... | getStr n (ident x) = unwords $ "getelementptr [" ∷ showℕ n ∷ "x i8], [" ∷ showℕ n ∷ "x i8]*" ∷ ("@" ++ x) ∷ ", i32 0, i32 0" ∷ []
+  ... | getStruct {t} s i = unwords $ "getelementptr " ∷ pTypeDeptr s ∷ "," ∷ pTypeOper s ∷ ", i32 0, i32 " ∷ showℕ (toℕ i) ∷ []
+          where toℕ : ∀ {t ts} → t ∈ ts → ℕ
+                toℕ (here px) = 0
+                toℕ (there x) = suc (toℕ x)
+  ... | getArray arr i = unwords $ "getelementptr " ∷ pTypeDeptr arr ∷ "," ∷ pTypeOper arr ∷ ", i32 0, i32 1," ∷ pTypeOper i ∷ []
   ... | phi x  = unwords $ "phi" ∷ pType T ∷ intersperse ", " (pPhi x) ∷ []
   ... | vret   = unwords $ "ret" ∷ "void" ∷ []
   ... | ret x  = unwords $ "ret" ∷ pTypeOper x ∷ []

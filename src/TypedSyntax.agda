@@ -127,8 +127,8 @@ module Typed (Σ : SymbolTab) where
 
   data Exp (Γ : Ctx) : Type → Set
   data WFNew (Γ : Ctx) : New → Type → Set where
-    nType  : ∀ {e   t} → Basic t     → Exp Γ int → WFNew Γ (nType  t e) (array t)
-    nArray : ∀ {e n t} → WFNew Γ n t → Exp Γ int → WFNew Γ (nArray n e) (array t)
+    nType  : ∀ {t   e} → Basic t     → Exp Γ int → WFNew Γ (nType  t e) (array t)
+    nArray : ∀ {t n e} → WFNew Γ n t → Exp Γ int → WFNew Γ (nArray n e) (array t)
 
   data Exp Γ where
     EValue  : toSet T  → Exp Γ T
