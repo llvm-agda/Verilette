@@ -1,23 +1,20 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 
-open import Data.Product using (_×_; _,_; ∃; map₂) renaming (proj₁ to fst; proj₂ to snd)
-open import Data.List using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
-open import Data.List.Relation.Unary.All using (All); open All
-
-open import Data.Bool using (Bool; true; false; _∧_; if_then_else_)
-import Data.Integer as Int
-
-open import Data.String using (String; fromList; unwords; unlines; intersperse; _++_; length)
-open import Agda.Builtin.Int using (pos) renaming (primShowInteger to showℤ)
-open import Data.Float using () renaming (show to showℝ)
-import Data.Bool as Bool
-open import Data.Nat using (ℕ; suc; zero)
-open import Data.Nat.Show using () renaming (show to showℕ)
-open import Function using (_$_; _∘_; case_of_)
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+
+open import Data.Product using (_×_; _,_; ∃)
+open import Data.List    using (List; _∷_; []) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
+open import Data.String  using (String; fromList; _++_; length)
+
+open import Agda.Builtin.Int using (pos)
+open import Data.Bool using (Bool; true; false; _∧_; if_then_else_)
+open import Data.Nat  using (ℕ; suc; zero)
+open import Data.Nat.Show using () renaming (show to showℕ)
+
+open import Function using (_$_; _∘_; case_of_)
 
 open import Data.Unit.Polymorphic.Base using (⊤; tt)
 open import Effect.Monad
@@ -98,6 +95,8 @@ addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b
 removeVar : ∀ {id t} → CMState (((id , t) ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
 removeVar (cMS g v t l ((_ ∷ δ) ∷ γ) b) = cMS g v t l (δ  ∷ γ) b
 
+
+-- Compiler monad
 CM : (Γ : Ctx) → Set → Set
 CM Γ = State (CMState Γ)
 
@@ -169,13 +168,6 @@ newLabel = do l ← labelC <$> get
 putLabel : Label → CM Γ ⊤
 putLabel l = modify λ s → record s {block = label l ∷ block s}
 
--- Used for lazy evaluation of ||, &&.
--- Should be removed during simplification
-curentLabel : CM Γ Label
-curentLabel = do l ← newLabel
-                 emit (jmp l)
-                 putLabel l
-                 pure l
 
 llvmSym : OldSymbolTab → SymbolTab
 llvmSym [] = []
@@ -260,22 +252,23 @@ module _ (σ : SymTab Σ) where
 
   compileExp (ELogic x op y) = do mid ← newLabel
                                   end ← newLabel
+                                  res ← emitTmp (alloc i1)
 
                                   x' ← compileExp x
-                                  postx ← curentLabel
+                                  emit (store x' res)
                                   case op of λ { && → emit (branch x' mid end)
                                                ; || → emit (branch x' end mid)}
 
                                   putLabel mid
                                   y' ← compileExp y
-                                  posty ← curentLabel
+                                  emit (store y' res)
                                   emit (jmp end)
 
                                   putLabel end
-                                  emitTmp (phi ((x' , postx) ∷ (y' , posty) ∷ []))
+                                  emitTmp (load res)
 
   compileExp (ENeg p e) = emitTmp =<< arith (fromNum p) ArithOp.- (const (toZero p)) <$> compileExp e
-  compileExp (ENot e)   = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
+  compileExp (ENot e)   = emitTmp =<< cmp i1            RelOp.eQU (const false)      <$> compileExp e
   compileExp (EIdx arr i) = do arrPtr ← compileExp arr
                                i' ← compileExp i
                                iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
@@ -410,126 +403,3 @@ compileProgram p =
         help : FunList' (llvmSym (BuiltIn +++ Defs)) (llvmSym Defs) → FunList' (llvmSym BuiltIn +++ llvmSym Defs) (llvmSym Defs)
         help x rewrite llvmSymHom BuiltIn Defs = x
 
-
--- printing llvm code
-module _ where
-
-  pType :      Type → String
-  pTypeList : List Type → String
-  pType (lint n)  = "i" ++ showℕ (suc n)
-  pType float = "double"
-  pType void  = "void"
-  pType (t *) = pType t ++ "*"
-  pType (array n t) = "[ " ++ showℕ n ++ " x " ++ pType t ++ " ]"
-  pType (struct ts) = "{ " ++ pTypeList ts ++ " }"
-  pType (fun t ts) = pType t ++ " (" ++ pTypeList ts ++ ")"
-
-  pTypeList [] = ""
-  pTypeList (x ∷ []) = pType x
-  pTypeList (y ∷ x ∷ xs) = pType y ++ ", " ++ pTypeList (x ∷ xs)
-
-
-  pOperand : Operand T → String
-  pOperand {T} (const x) with T
-  ... | float = showℝ x
-  ... | t *   = "null"  -- is null the only ptr constant?
-  ... | (lint n) with n
-  ... | suc _ = showℤ x 
-  ... | zero with x 
-  ... | Bool.false = "false"
-  ... | Bool.true  = "true"
-  pOperand {_} (local  (ident x)) = "%" ++ x
-  pOperand {_} (global (ident x)) = "@" ++ x
-
-  pPairOperand : (x y : Operand T) → String
-  pPairOperand {T} x y = pType T ++ " " ++ pOperand x ++ " , " ++ pOperand y
-
-  pTypeOper : Operand T → String
-  pTypeOper {T} x = pType T ++ " " ++ pOperand x
-
-  pLabel : Label → String
-  pLabel (ident x) = "label %" ++ x
-
-  -- Helper functions for pInst
-  private
-    pArith : FirstClass T → ArithOp → String
-    pArith (lint n) = λ { + →  "add"; - →  "sub"; mul →  "mul"; / → "sdiv"}
-    pArith float    = λ { + → "fadd"; - → "fsub"; mul → "fmul"; / → "fdiv"}
-
-    open RelOp
-    pCmp : FirstClass T → RelOp → String
-    pCmp (lint _)  = ("icmp " ++_) ∘ λ { lTH → "slt"; lE → "sle"; gTH → "sgt"; gE → "sge"; eQU →  "eq"; nE →  "ne"}
-    pCmp float = ("fcmp " ++_) ∘ λ { lTH → "ult"; lE → "ule"; gTH → "ugt"; gE → "uge"; eQU → "ueq"; nE → "une"}
-
-    pCall : All Operand Ts → String
-    pCall (_∷_ {t} y (x ∷ xs)) = pType t ++ " " ++ pOperand y ++ ", " ++ pCall (x ∷ xs)
-    pCall (_∷_ {t} x [])       = pType t ++ " " ++ pOperand x
-    pCall [] = ""
-
-    pPhi : List (Operand T × Id) → List String
-    pPhi = map λ {(x , ident l) → "[ " ++ pOperand x ++ ", %" ++ l ++ " ]"}
-
-    pTypeDeptr : ∀ {t} → Operand (t *) → String
-    pTypeDeptr {t} x = pType t
-
-    pGetElem : ∀ {t t'} → GetElem t t' → List String
-    pGetElem [] = []
-    pGetElem (array  x ∷ xs) = pTypeOper x ∷ pGetElem xs
-    pGetElem (struct x ∷ xs) = ("i32 " ++ showℕ (toℕ x)) ∷ pGetElem xs
-      where toℕ : ∀ {t : Type} {ts} → t ∈ ts → ℕ
-            toℕ (here px) = 0
-            toℕ (there x) = suc (toℕ x)
-
-
-  pInst : Instruction T → String
-  pInst {T} inst with inst
-  ... | arith p op x y = unwords $ pArith p op ∷ pPairOperand x y ∷ []
-  ... | cmp   p op x y = unwords $ pCmp   p op ∷ pPairOperand x y ∷ []
-  ... | srem       x y = unwords $ "srem"      ∷ pPairOperand x y ∷ []
-  ... | alloc t        = unwords $ "alloca" ∷ pType t     ∷ []
-  ... | load x         = unwords $ "load"   ∷ pType T     ∷ "," ∷ pTypeOper x ∷ []
-  ... | store o p      = unwords $ "store"  ∷ pTypeOper o ∷ "," ∷ pTypeOper p ∷ []
-  ... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
-  ... | call {T} x xs  = unwords $ "call"   ∷ pType T ∷ (pOperand x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
-  ... | ptrToInt x     = unwords $ "ptrtoint" ∷ pTypeOper x ∷ "to" ∷ pType i32 ∷ []
-  ... | bitCast x t'   = unwords $ "bitcast"  ∷ pTypeOper x ∷ "to" ∷ pType t' ∷ []
-  ... | getElemPtr o i x = intersperse ", " $ ("getelementptr " ++ pTypeDeptr o) ∷ pTypeOper o ∷ ("i32 " ++ showℕ i) ∷ pGetElem x
-  ... | phi x  = unwords $ "phi" ∷ pType T ∷ intersperse ", " (pPhi x) ∷ []
-  ... | vret   = unwords $ "ret" ∷ "void" ∷ []
-  ... | ret x  = unwords $ "ret" ∷ pTypeOper x ∷ []
-  ... | jmp x  = unwords $ "br"  ∷ pLabel x ∷ []
-  ... | branch x t f =  unwords $ "br" ∷ "i1" ∷ pOperand x ∷ "," ∷ pLabel t ∷ "," ∷ pLabel f ∷ []
-  ... | label (ident x) = "error: lables should have been handled in pCode"
-
-  -- Should maybe reverse the order of code when compiling
-  pCode : Code → String
-  pCode [] = ""
-  pCode (label (ident l) ∷ xs) = pCode xs ++ l ++ ": \n"
-  pCode (x ∷ xs)      = pCode xs ++ "  " ++                        pInst x ++ "\n"
-  pCode (o := x ∷ xs) = pCode xs ++ "  " ++ pOperand o ++ " = " ++ pInst x ++ "\n"
-
-  pFun : {Σ : SymbolTab} → Id → FunDef Σ Ts T → String
-  pFun {T = T} (ident id) def =
-       let header = unwords $ "define" ∷ pType T ∷ ("@" ++ id) ∷ pParams ∷ "{" ∷ []
-       in intersperse "\n" $ header ∷ pCode body ∷ "}" ∷ []
-    where open FunDef def
-          pParams = "(" ++ intersperse ", " (map (λ {(ident i , t) → pType t ++ " %" ++ i}) params) ++ ")"
-
-  pProgram : llvmProgram → String
-  pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pStrings ∷ pDefs hasDefs
-    where open llvmProgram p
-          pCalloc : String
-          pCalloc = "declare i8* @calloc(i32, i32)"
-
-          pStrings : List String
-          pStrings = map (λ {(ident i , s) →
-                         "@" ++ i ++ " = internal constant [ " ++ showℕ (length s) ++ " x i8 ] c\"" ++ s ++ "\""}) Strings
-          pBuiltIn : List String
-          pBuiltIn = map (λ
-                       { (ident "printString" , _) → "declare void @printString(i8*)" -- since we use a "hack" for printString
-                       ; (ident i , ts , t) →
-                              "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) BuiltIn
-
-          pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
-          pDefs [] = []
-          pDefs (_∷_ {i , _} x xs) = pFun i x ∷ pDefs xs
