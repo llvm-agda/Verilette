@@ -1,3 +1,5 @@
+{-# OPTIONS --allow-unsolved-metas #-}
+
 open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
@@ -37,9 +39,9 @@ toExp (neg p x)     = ENeg p (toExp x)
 toExp (not x)       = ENot   (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eNew n)      = ENew (toNew n)
-  where toNew : ∀ {n t} → OldWFNew Γ n t → WFNew Γ n t
-        toNew (nType  b x) = nType b (toExp x)
-        toNew (nArray n x) = nArray (toNew n) (toExp x)
+  where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew Γ t'
+        toNew (nType  x _)  = nType _ (toExp x)
+        toNew (nArray x ns) = nArray (toNew ns) (toExp x)
 toExp (eLength x)   = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
 toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)
@@ -62,10 +64,16 @@ toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 
+toZero : NonVoid T → Exp Γ T
+toZero {.int}  NonVoidInt  = EValue Int.0ℤ
+toZero {.doub} NonVoidDoub = EValue 0.0
+toZero {.bool} NonVoidBool = EValue Bool.false
+toZero (NonVoidArray _) = ENew (nType _ (EValue Int.0ℤ))
+
 
 toDecls : ∀ {is t} → NonVoid t → DeclP Σ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
 toDecls n [] ss = ss
-toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ _ (EValue (toZero n)) px) SCons toDecls n is ss
+toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ _ (toZero n) px) SCons toDecls n is ss
 toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ _ (toExp e')          px) SCons toDecls n is ss
 
 

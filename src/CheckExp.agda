@@ -58,17 +58,18 @@ module CheckExp (Γ : Ctx) where
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
-  infer (eNew new) = do new' ::: t ← inferNew new
-                        pure (eNew new' ::: t)
-        where inferNew : (n : New) → TCM (∃ (WFNew Γ n))
-              inferNew (nType t  e)    = do b ← ifBasic t
-                                            e' ::: int ← infer e
-                                              where e' ::: _ → error "Tried to create a new array with non-int expression"
-                                            pure (nType b e' ::: array t)
-              inferNew (nArray n e) = do n' ::: t ← inferNew n
-                                         e' ::: int ← infer e
-                                            where e' ::: _ → error "Tried to create a new array with non-int expression"
-                                         pure (nArray n' e' ::: array t)
+  infer (eNew (nArray t ns)) = do new' ::: t' ← inferNew ns
+                                  pure (eNew new' ::: t')
+        where inferNew : (ns : List ArrDecl) → TCM (∃ (WFNew Γ t ns))
+              inferNew [] = error "Tried to make a new array without size"
+              inferNew (arraySize e ∷ []) = do e' ::: int ← infer e
+                                                  where e' ::: _ → error "Tried to create a new array with non-int expression"
+                                               b ← ifBasic t
+                                               pure (nType e' b ::: array t)
+              inferNew (arraySize e ∷ ns) = do e' ::: int ← infer e
+                                                  where e' ::: _ → error "Tried to create a new array with non-int expression"
+                                               ns' ::: t' ← inferNew ns
+                                               pure (nArray e' ns' ::: array t')
   infer (eAttrib e (ident "length")) = do e' ::: array t  ← infer e
                                              where e' ::: _ → error "Only arrays have length attribute"
                                           pure (eLength e' ::: int)

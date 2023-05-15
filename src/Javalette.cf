@@ -112,8 +112,10 @@ EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
 
-NType.     New ::= Type "[" Expr "]" ;
-NArray.    New ::= New  "[" Expr "]" ;
+NArray.    New ::= Type  [ArrDecl] ;
+
+ArraySize. ArrDecl ::= "[" Expr "]" ;
+terminator nonempty ArrDecl "" ;
 
 coercions  Expr 6 ;
 

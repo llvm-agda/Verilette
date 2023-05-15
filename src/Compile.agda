@@ -5,6 +5,7 @@ open import Data.List using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ+
 open import Data.List.Relation.Unary.All using (All); open All
 
 open import Data.Bool using (Bool; true; false; _∧_; if_then_else_)
+import Data.Integer as Int
 
 open import Data.String using (String; fromList; unwords; unlines; intersperse; _++_; length)
 open import Agda.Builtin.Int using (pos) renaming (primShowInteger to showℤ)
@@ -28,7 +29,9 @@ open RawMonad {{...}}
 
 open import Code
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
-open import TypedSyntax Id hiding (T; Ts; toZero) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab) 
+open import TypedSyntax Id hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
+open Typed
+open Valid
 
 module Compile where
 
@@ -39,7 +42,7 @@ llvmType OldType.int  = i32
 llvmType OldType.doub = float
 llvmType OldType.bool = i1
 llvmType OldType.void = void
-llvmType (OldType.array t) = (struct (i32 ∷ llvmType t * ∷ [])) *
+llvmType (OldType.array t)  = struct (i32 ∷ array 0 (llvmType t) ∷ []) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 
 llvmTypes [] = []
@@ -146,7 +149,7 @@ withNewVar : (id : Id) → Operand (llvmType t)  → CM (((id , t) ∷ Δ) ∷ �
 withNewVar {t = t} _ x m = do v ← varC <$> get
                               let p = local $ ident ("v" ++ showℕ v)
                               modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
-                                                            ; varC  = suc (varC s)}
+                                                    ; varC  = suc (varC s)}
                               s ← get
                               let (s' , a) = runState m (addVar p s)
                               put (removeVar s')
@@ -196,15 +199,53 @@ fromEq EqInt    = lint 31
 fromEq EqBool   = lint 0
 fromEq EqDouble = float
 
-sizeOfType : ∀ {t} → Basic t → toSet i32
-sizeOfType BasicInt  = pos 4
-sizeOfType BasicDoub = pos 4
-sizeOfType BasicBool = pos 1
+
+calloc : (n : Operand i32) → Operand i32 → Instruction (i8 *)
+calloc n t = call (global (ident "calloc")) (n ∷ t ∷ [])
+
+callocArray : (t : Type) → (n : Operand i32) → CM Γ (Operand (struct (i32 ∷ array 0 t ∷ []) *))
+callocArray t n = do sucN ← emitTmp (arith i32 ArithOp.+ n (const (pos 1)))
+                     size' ← emitTmp (getElemPtr {struct (i32 ∷ array 0 t ∷ [])} (const 0) 0
+                                                                (struct (there (here refl)) ∷ array sucN ∷ []))
+                     size ← emitTmp (ptrToInt size')
+
+                     p ← emitTmp (calloc (const (pos 1)) size)
+                     pArr ← emitTmp (bitCast p ((struct (i32 ∷ array 0 t ∷ [])) *))
+
+                     len  ← emitTmp (getElemPtr pArr 0 ((struct (here refl)) ∷ []))
+                     emit (store n len)
+                     pure pArr
+
+
+forArray : ∀ {t} → Operand (struct (i32 ∷ array 0 t ∷ []) *) → (Operand (t *) → CM Γ Bool) → CM Γ Bool
+forArray arr f = do lenPtr ← emitTmp (getElemPtr arr 0 (struct (here refl) ∷ [])) -- index 0
+                    len ← emitTmp (load lenPtr)
+
+                    iPtr ← emitTmp (alloc i32)
+                    emit (store (const (pos 0)) iPtr)
+
+                    preCond ← newLabel
+                    for     ← newLabel
+                    end     ← newLabel
+
+                    emit (jmp preCond)
+                    putLabel preCond
+                    i'   ← emitTmp (load iPtr)
+                    cond ← emitTmp (cmp i32 RelOp.lTH i' len)
+                    emit (branch cond for end) -- while i < len
+                    putLabel for
+                    valPtr ← emitTmp (getElemPtr arr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
+
+                    sRet ← f valPtr
+                    unless sRet do i'' ← emitTmp (arith i32 + i' (const (pos 1)))
+                                   emit (store i'' iPtr)
+                                   emit (jmp preCond)
+                    putLabel end
+                    pure sRet
+
 
 -- Compilation using a given SymTab σ
 module _ (σ : SymTab Σ) where
-  open Typed 
-  open Valid 
 
   compileExp : (e : Exp Σ Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
@@ -235,23 +276,30 @@ module _ (σ : SymTab Σ) where
 
   compileExp (ENeg p e) = emitTmp =<< arith (fromNum p) ArithOp.- (const (toZero p)) <$> compileExp e
   compileExp (ENot e)   = emitTmp =<< cmp i1 RelOp.eQU (const Bool.false) <$> compileExp e
-  compileExp (EIdx arr i) = do i' ← emitTmp =<< getArray <$> compileExp arr <*> compileExp i
-                               emitTmp (load i')
-  compileExp (ENew (nType {t} x n)) = do n' ← compileExp n
-                                         arr ← emitTmp (alloc (struct (i32 ∷ llvmType t * ∷ [])))
-                                         arr' ← emitTmp (getStruct arr (there (here refl))) -- index 1
-                                         t* ← emitTmp (call (global (ident "calloc")) (n' ∷ const {i32} (sizeOfType x) ∷ [])) -- should define calloc properly
-                                         emit (store t* arr')
-                                         pure arr
-  compileExp (ENew (nArray x n)) = {!!}
-  compileExp (ELength x)  = do x' ← compileExp x
-                               len ← emitTmp (getStruct x' (here refl)) -- index 0
+  compileExp (EIdx arr i) = do arrPtr ← compileExp arr
+                               i' ← compileExp i
+                               iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
+                               emitTmp (load iPtr)
+  compileExp (ENew new) = callocNew new
+    where callocNew : WFNew Σ Γ t → CM Γ (Operand (llvmType t))
+          callocNew (nType  t len)     = callocArray (llvmType t) =<< compileExp len
+          callocNew (nArray {t} n len) = do pArr ← callocArray (llvmType t) =<< compileExp len
+                                            forArray pArr λ t* → do
+                                                  new ← callocNew n
+                                                  emit (store new t*)
+                                                  pure false
+                                            pure pArr
+
+  compileExp (ELength x)  = do arr ← compileExp x
+                               len ← emitTmp (getElemPtr arr 0 ((struct (here refl)) ∷ [])) -- index 0
                                emitTmp (load len)
   compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
+                                let str = fromList x ++ "\00"
                                 let id = ident ("str" ++ showℕ c)
-                                let gs = gS (suc c) ((id , fromList x ++ "\00") ∷ strs)
-                                modify λ s → record s {globalS = gs}
-                                operand ← emitTmp (getStr (suc (length (fromList x))) id)
+                                let globalOper = global {array (length str) i8 *} id
+                                modify λ s → record s {globalS = gS (suc c) ((id , str) ∷ strs)}
+
+                                operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
     where mapCompileExp : TList (Exp Σ Γ) ts → CM Γ (TList Operand (llvmTypes ts))
@@ -270,30 +318,16 @@ module _ (σ : SymTab Σ) where
                                              withNewVar id x' $ compileStms ss
   compileStms (SAss id e x SCons ss)    = do emit =<< store <$> compileExp e <*> getPtr x
                                              compileStms ss
-  compileStms (SAssIdx arr i x  SCons ss) = do x' ← compileExp x
-                                               i' ← emitTmp =<< getArray <$> compileExp arr <*> compileExp i
-                                               emit (store x' i')
+  compileStms (SAssIdx arr i x  SCons ss) = do arr' ← compileExp arr
+                                               i' ← compileExp i
+                                               x' ← compileExp x
+                                               i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
+                                               emit (store x' i'')
                                                compileStms ss
   compileStms (SFor id arr s SCons ss) = do arr' ← compileExp arr
-                                            lenPtr ← emitTmp (getStruct arr' (here refl)) -- index 0
-                                            len ← emitTmp (load lenPtr)
-
-                                            iPtr ← emitTmp (alloc i32)
-                                            preCond ← newLabel
-                                            for     ← newLabel
-                                            end     ← newLabel
-
-                                            putLabel preCond
-                                            i'   ← emitTmp (load iPtr)
-                                            iter ← emitTmp (cmp i32 RelOp.lTH i' len)
-                                            emit (branch iter for end) -- while i < len
-                                            putLabel for
-                                            val ← emitTmp ∘ load =<< emitTmp (getArray arr' i')
-                                            sRet ← inNewBlock $ withNewVar id val (compileStms s)
-                                            unless sRet do i'' ← emitTmp (arith i32 + i' (const (pos 1)))
-                                                           emit (store i'' iPtr)
-                                                           emit (jmp preCond)
-                                            putLabel end
+                                            forArray arr' λ v* → do
+                                                  v ← emitTmp (load v*)
+                                                  inNewBlock $ withNewVar id v (compileStms s)
                                             compileStms ss
   compileStms (SWhile x s  SCons ss) = do preCond ← newLabel
                                           loop    ← newLabel
@@ -386,7 +420,8 @@ module _ where
   pType float = "double"
   pType void  = "void"
   pType (t *) = pType t ++ "*"
-  pType (struct ts) = "{" ++ pTypeList ts ++ "}"
+  pType (array n t) = "[ " ++ showℕ n ++ " x " ++ pType t ++ " ]"
+  pType (struct ts) = "{ " ++ pTypeList ts ++ " }"
   pType (fun t ts) = pType t ++ " (" ++ pTypeList ts ++ ")"
 
   pTypeList [] = ""
@@ -437,6 +472,14 @@ module _ where
     pTypeDeptr : ∀ {t} → Operand (t *) → String
     pTypeDeptr {t} x = pType t
 
+    pGetElem : ∀ {t t'} → GetElem t t' → List String
+    pGetElem [] = []
+    pGetElem (array  x ∷ xs) = pTypeOper x ∷ pGetElem xs
+    pGetElem (struct x ∷ xs) = ("i32 " ++ showℕ (toℕ x)) ∷ pGetElem xs
+      where toℕ : ∀ {t : Type} {ts} → t ∈ ts → ℕ
+            toℕ (here px) = 0
+            toℕ (there x) = suc (toℕ x)
+
 
   pInst : Instruction T → String
   pInst {T} inst with inst
@@ -447,13 +490,10 @@ module _ where
   ... | load x         = unwords $ "load"   ∷ pType T     ∷ "," ∷ pTypeOper x ∷ []
   ... | store o p      = unwords $ "store"  ∷ pTypeOper o ∷ "," ∷ pTypeOper p ∷ []
   ... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
-  ... | call x xs = unwords $ "call"   ∷ (pTypeOper x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
-  ... | getStr n (ident x) = unwords $ "getelementptr [" ∷ showℕ n ∷ "x i8], [" ∷ showℕ n ∷ "x i8]*" ∷ ("@" ++ x) ∷ ", i32 0, i32 0" ∷ []
-  ... | getStruct {t} s i = unwords $ "getelementptr " ∷ pTypeDeptr s ∷ "," ∷ pTypeOper s ∷ ", i32 0, i32 " ∷ showℕ (toℕ i) ∷ []
-          where toℕ : ∀ {t ts} → t ∈ ts → ℕ
-                toℕ (here px) = 0
-                toℕ (there x) = suc (toℕ x)
-  ... | getArray arr i = unwords $ "getelementptr " ∷ pTypeDeptr arr ∷ "," ∷ pTypeOper arr ∷ ", i32 0, i32 1," ∷ pTypeOper i ∷ []
+  ... | call {T} x xs  = unwords $ "call"   ∷ pType T ∷ (pOperand x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
+  ... | ptrToInt x     = unwords $ "ptrtoint" ∷ pTypeOper x ∷ "to" ∷ pType i32 ∷ []
+  ... | bitCast x t'   = unwords $ "bitcast"  ∷ pTypeOper x ∷ "to" ∷ pType t' ∷ []
+  ... | getElemPtr o i x = intersperse ", " $ ("getelementptr " ++ pTypeDeptr o) ∷ pTypeOper o ∷ ("i32 " ++ showℕ i) ∷ pGetElem x
   ... | phi x  = unwords $ "phi" ∷ pType T ∷ intersperse ", " (pPhi x) ∷ []
   ... | vret   = unwords $ "ret" ∷ "void" ∷ []
   ... | ret x  = unwords $ "ret" ∷ pTypeOper x ∷ []
@@ -476,8 +516,11 @@ module _ where
           pParams = "(" ++ intersperse ", " (map (λ {(ident i , t) → pType t ++ " %" ++ i}) params) ++ ")"
 
   pProgram : llvmProgram → String
-  pProgram p = intersperse "\n\n" $ unlines pBuiltIn ∷ unlines pStrings ∷ pDefs hasDefs
+  pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pStrings ∷ pDefs hasDefs
     where open llvmProgram p
+          pCalloc : String
+          pCalloc = "declare i8* @calloc(i32, i32)"
+
           pStrings : List String
           pStrings = map (λ {(ident i , s) →
                          "@" ++ i ++ " = internal constant [ " ++ showℕ (length s) ++ " x i8 ] c\"" ++ s ++ "\""}) Strings

@@ -59,9 +59,9 @@ module Expression (Σ : SymbolTab) where
 
 
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
-  data WFNew (Γ : Ctx) : New → Type → Set where
-    nType  : ∀ {t}     → Basic t     → Γ ⊢ e ∶ int → WFNew Γ (nType  t e) (array t)
-    nArray : ∀ {e n t} → WFNew Γ n t → Γ ⊢ e ∶ int → WFNew Γ (nArray n e) (array t)
+  data WFNew (Γ : Ctx) (t : Type) : List ArrDecl → Type → Set where
+    nType  : ∀ {e}       → Γ ⊢ e ∶ int → Basic t         → WFNew Γ t (arraySize e ∷ []) (array t)
+    nArray : ∀ {e ns t'} → Γ ⊢ e ∶ int → WFNew Γ t ns t' → WFNew Γ t (arraySize e ∷ ns) (array t')
 
   -- Typing judgements 
   data _⊢_∶_ Γ where
@@ -85,7 +85,7 @@ module Expression (Σ : SymbolTab) where
     eAdd : Num T → (op : _) → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eAdd x op y ∶ T
 
     eIndex  : ∀ {t arr i} →  Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ eIndex arr i ∶ t
-    eNew    : ∀ {new t}   →  WFNew Γ new t      →  Γ ⊢ eNew new ∶ t
+    eNew    : ∀ {t t' ns} → WFNew Γ t ns t' → Γ ⊢ eNew (nArray t ns) ∶ t'
     eLength : ∀ {e t}     →  Γ ⊢ e   ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool

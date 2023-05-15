@@ -29,7 +29,7 @@ data Type : Set where
   void : Type
   _* : Type → Type
   struct : List Type → Type
-  -- array t = (struct (i32 ∷ t * ∷ [])) *
+  array : ℕ → Type → Type
   fun : Type → List Type → Type
 
 variable
@@ -64,6 +64,16 @@ data Operand (T : Type) : Set where
   local  : (id : Id) → Operand T
   global : (id : Id) → Operand T
 
+
+data GetElem' : Type → Type → Set where
+  struct : ∀ {t ts} → t ∈ ts → GetElem' (struct ts) t
+  array  : ∀ {t n}  → Operand i32 → GetElem' (array n t) t
+
+data GetElem : Type → Type → Set where
+  []  : ∀ {t} → GetElem t t
+  _∷_ : ∀ {t t' t''} → GetElem' t t' → GetElem t' t'' → GetElem t t''
+
+
 data Instruction : (T : Type) → Set where
   arith  : FirstClass T → ArithOp → (x y : Operand T) → Instruction T
   cmp    : FirstClass T → RelOp   → (x y : Operand T) → Instruction i1
@@ -74,9 +84,9 @@ data Instruction : (T : Type) → Set where
   call   : Operand (fun T Ts) → TList Operand Ts → Instruction T
   phi    : List (Operand T × Label) → Instruction T
 
-  getStr    : (len : ℕ) → Id → Instruction (i8 *) -- getElemPtr specified to Strings
-  getStruct : ∀ {t ts} → Operand (struct ts *) → t ∈ ts → Instruction (t *) -- getElemPtr specified to Structs
-  getArray  : ∀ {t} → Operand (struct (i32 ∷ t * ∷ []) *) → Operand i32 → Instruction (t *) -- getElemPtr specified to Array
+  ptrToInt   : ∀ {t} → Operand (t *) → Instruction i32
+  bitCast    : ∀ {t} → Operand t → (t' : Type) → Instruction t'
+  getElemPtr : ∀ {t t'} → Operand (t *) → ℕ → GetElem t t' → Instruction (t' *)
 
   -- Terminators
   jmp    : (l : Label) → Instruction void
