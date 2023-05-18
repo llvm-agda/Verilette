@@ -6,9 +6,9 @@ Program.   Prog ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Blk ;
 
--- TypeDef.   TopDef ::= "typedef" "struct" Type Type ";" ;
+TypeDef.   TopDef ::= "typedef" "struct" Type Type ";" ;
 
--- Struct.    TopDef ::= "struct" Ident "{" [Field] "}" ";" ;
+Struct.    TopDef ::= "struct" Ident "{" [Field] "}" ";" ;
 
 separator nonempty TopDef "" ;
 
@@ -40,7 +40,9 @@ separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
-AssIdx.    Stmt ::= Expr6 "[" Expr "]" "=" Expr  ";" ;
+AssIdx.    Stmt ::= Expr "[" Expr "]" "=" Expr  ";" ;
+
+AssPtr.    Stmt ::= Expr "->" Ident  "=" Expr  ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
@@ -74,6 +76,8 @@ internal   Fun. Type ::= Type "(" [Type] ")" ;
 
 Array.     Type ::= Type "[]" ;
 
+StructT.   Type ::= Ident ;
+
 separator  Type "," ;
 
 -- Expressions ---------------------------------------------
@@ -88,11 +92,13 @@ ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
 
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
+
 EIndex.    Expr6 ::= Expr6 "[" Expr "]" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
-ENew.      Expr6 ::= "new" New ;
+ENew.      Expr6 ::= "new" Type [ArrDecl] ;
 
 EString.   Expr6 ::= String ;
 
@@ -101,6 +107,8 @@ Neg.       Expr5 ::= "-" Expr6 ;
 Not.       Expr5 ::= "!" Expr6 ;
 
 EAttrib.   Expr5 ::= Expr6 "." Ident ;
+
+EDeRef.    Expr5 ::= Expr6 "->" Ident ;
 
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 
@@ -112,10 +120,8 @@ EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
 
-NArray.    New ::= Type  [ArrDecl] ;
-
 ArraySize. ArrDecl ::= "[" Expr "]" ;
-terminator nonempty ArrDecl "" ;
+terminator ArrDecl "" ;
 
 coercions  Expr 6 ;
 

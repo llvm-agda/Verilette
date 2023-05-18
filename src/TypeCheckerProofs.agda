@@ -10,18 +10,18 @@ open import Data.List.Properties using (ʳ++-defn)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import Util 
-open import TypedSyntax Ident as TS using (SymbolTab; Ctx; Num; Ord; Eq
-                                          ; Γ; Δ; Δ'; Δ'')
+open import TypedSyntax as TS using (SymbolTab; TypeTab; Ctx; Num; Ord; Eq
+                                    ; Γ; Δ; Δ'; Δ'')
 open import WellTyped 
 open import CheckExp 
 
 
 module TypeCheckerProofs where
 
-module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
+module ExpressionProofs (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) (Γ : Ctx) where
 
-  open CheckExp.CheckExp Σ Γ
-  open WellTyped.Expression Σ
+  open CheckExp.CheckExp Σ Χ χ Γ
+  open WellTyped.Expression Σ Χ χ
 
 
   eqIdRefl : ∀ id → id eqId id ≡ inj₂ refl
@@ -37,6 +37,7 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
   =T=Refl doub = refl
   =T=Refl bool = refl
   =T=Refl void = refl
+  =T=Refl (structT x) rewrite eqIdRefl x = refl
   =T=Refl (array t) rewrite =T=Refl t = refl
   =T=Refl (fun t ts) rewrite =T=Refl t rewrite eqListsRefl ts = refl
   
@@ -53,7 +54,10 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
   inferProof (not eT) rewrite inferProof eT = refl
   inferProof (eMod eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eIndex x x₁) rewrite inferProof x₁ rewrite inferProof x = refl
-  inferProof (eNew x) = {!!}
+  inferProof (eArray x) = {!!}
+  inferProof (eStruct x) = {!!}
+  inferProof (eNull x) = {!!}
+  inferProof (eDeRef x x₁ x₂) = {!!}
   inferProof (eLength x)   rewrite inferProof x = refl
   inferProof (eMul Num.NumInt        eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eMul Num.NumDouble     eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
@@ -85,30 +89,30 @@ module ExpressionProofs (Σ : SymbolTab) (Γ : Ctx) where
 
 
 
-module ReturnsProof (Σ : SymbolTab) where
+module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
 
   open WellTyped.Statements Σ
   open WellTyped.Return
 
-  open TS.Valid Σ
-  open TS.Typed Σ
-  open TS.returnStm
+  open TS.Valid Σ χ
+  open TS.Typed Σ χ
+  open TS.returnStm 
   open TS.returnStms
 
   open Javalette.AST.Item
 
-  open import Translate Σ using (toExp; toStms; _SCons'_; toDecls)
+  open import Translate Σ χ using (toExp; toStms; _SCons'_; toDecls)
 
 
-  returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid t)
+  returnDecl : ∀ {Χ T Γ Δ Δ' t is} (n : TS.NonVoid t)
                {ss : Stms T ((Δ' ++r Δ) ∷ Γ)}
-               (is' : DeclP Σ t is (Δ ∷ Γ) Δ')
+               (is' : DeclP Σ Χ χ t is (Δ ∷ Γ) Δ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
   returnDecl n [] p = p
   returnDecl n (_∷_ {i = noInit x} px is) p = SCon (returnDecl n is p)
   returnDecl n (_∷_ {i = init x e} px is) p = SCon (returnDecl n is p)
 
-  returnProofThere : ∀ {T s ss Δ Δ' Δ''} {sT : _⊢_⇒_ T (Δ ∷ Γ) s Δ'} {ssT : _⊢_⇒⇒_ T _ ss Δ''}
+  returnProofThere : ∀ {Χ T s ss Δ Δ' Δ''} {sT : _⊢_⇒_ Χ χ T (Δ ∷ Γ) s Δ'} {ssT : _⊢_⇒⇒_ Χ χ T _ ss Δ''}
                             → TS.returnStms (toStms ssT) → TS.returnStms (toStms (sT ∷ ssT))
   returnProofThere {sT = empty} x = x
   returnProofThere {sT = ret x₁} x       = SHead SReturn
@@ -123,12 +127,13 @@ module ReturnsProof (Σ : SymbolTab) where
   returnProofThere {sT = assIdx x₁ x₂ x₃} x = SCon x
   returnProofThere {sT = for id x₁ sT} x = SCon x
   returnProofThere {sT = sExp x₁} x      = SCon x
+  returnProofThere {sT = assPtr x₁ x₂ x₃ x₄} x = SCon x
   returnProofThere {Δ = Δ} {sT = decl {Δ' = Δ'} t n is} x
                        rewrite sym (ʳ++-defn Δ' {Δ}) = returnDecl n is x -- Why is this rewrite necessary?
 
 
-  returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
-  returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
+  returnProof     : ∀ {Χ T ss}    {ssT : _⊢_⇒⇒_ Χ χ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
+  returnProofHere : ∀ {Χ T s ssT} {sT  : _⊢_⇒_  Χ χ T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
   returnProofHere (ret e')  = SHead SReturn
   returnProofHere vRet      = SHead SReturn
   returnProofHere (bStmt x) = SHead (SBlock (returnProof x))

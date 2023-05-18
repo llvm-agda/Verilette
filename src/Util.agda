@@ -19,11 +19,11 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import TypeCheckerMonad
 open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
-open import TypedSyntax Id
+open import TypedSyntax
 
 
 data InList {A : Set} (γ : List (Id × A)) (x : Id) : Set where
-  inList : (t : A) → (x , t) ∈ γ → InList γ x
+  inList : (a : A) → (x , a) ∈ γ → InList γ x
 
 showId : Id → String
 showId (ident s) = s
@@ -76,6 +76,7 @@ ifEq bool       = pure EqBool
 ifEq int        = pure EqInt
 ifEq doub       = pure EqDouble
 ifEq (array _)  = error "Array is not Eq type"
+ifEq (structT _)  = error "Struct is not Eq type"
 ifEq void       = error "Void is not Eq type"
 ifEq (fun T ts) = error "Function is not Eq type"
 
@@ -85,6 +86,7 @@ ifOrd int        = pure OrdInt
 ifOrd doub       = pure OrdDouble
 ifOrd (array _)  = error "Array is not Ord type"
 ifOrd void       = error "Void is not Ord type"
+ifOrd (structT _)  = error "Struct is not Ord type"
 ifOrd (fun T ts) = error "Function is not Ord type"
 
 ifNum : (T : Type) → TCM (Num T)
@@ -93,6 +95,7 @@ ifNum int        = pure NumInt
 ifNum doub       = pure NumDouble
 ifNum (array _)  = error "Array is not Num type"
 ifNum void       = error "Void is not numeric"
+ifNum (structT _)  = error "Struct is not Num type"
 ifNum (fun T ts) = error "Function is not Num type"
 
 ifNonVoid : (T : Type) → TCM (NonVoid T)
@@ -101,15 +104,17 @@ ifNonVoid int        = pure NonVoidInt
 ifNonVoid doub       = pure NonVoidDoub
 ifNonVoid (array t)  = NonVoidArray <$> ifNonVoid t
 ifNonVoid void       = error "Void is not-nonVoid"
+ifNonVoid (structT _)  = error "Struct is not-nonVoid"
 ifNonVoid (fun T ts) = error "Function is not-nonVoid"
 
 ifBasic : (T : Type) → TCM (Basic T)
 ifBasic bool       = pure BasicBool
 ifBasic int        = pure BasicInt
 ifBasic doub       = pure BasicDoub
-ifBasic (array _)  = error "Array is not Eq type"
-ifBasic void       = error "Void is not Eq type"
-ifBasic (fun T ts) = error "Function is not Eq type"
+ifBasic (array _)  = error "Array is not a Basic Type"
+ifBasic (structT _)  = error "Struct is not a Basic Type"
+ifBasic void       = error "Void is not a Basic Type"
+ifBasic (fun T ts) = error "Function is not a Basic Type"
 
 
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
@@ -119,29 +124,43 @@ int  =T= doub = inj₂ (λ ())
 int  =T= bool = inj₂ (λ ())
 int  =T= void = inj₂ (λ ())
 int  =T= (array _) = inj₂ (λ ())
+int  =T= (structT _) = inj₂ (λ ())
 int  =T= fun b ts = inj₂ (λ ())
 doub =T= int = inj₂ (λ ())
 doub =T= doub = inj₁ refl
 doub =T= bool = inj₂ (λ ())
 doub =T= void = inj₂ (λ ())
 doub =T= (array _) = inj₂ (λ ())
+doub =T= (structT _) = inj₂ (λ ())
 doub =T= fun b ts = inj₂ (λ ())
 bool =T= int = inj₂ (λ ())
 bool =T= doub = inj₂ (λ ())
 bool =T= bool = inj₁ refl
 bool =T= void = inj₂ (λ ())
 bool =T= (array _) = inj₂ (λ ())
+bool =T= (structT _) = inj₂ (λ ())
 bool =T= fun b ts = inj₂ (λ ())
 void =T= int = inj₂ (λ ())
 void =T= doub = inj₂ (λ ())
 void =T= bool = inj₂ (λ ())
 void =T= void = inj₁ refl
 void =T= (array _) = inj₂ λ ()
+void =T= (structT _) = inj₂ (λ ())
 void =T= fun b ts = inj₂ (λ ())
+structT x =T= int  = inj₂ (λ ())
+structT x =T= doub = inj₂ (λ ())
+structT x =T= bool = inj₂ (λ ())
+structT x =T= void = inj₂ (λ ())
+structT x =T= fun y ts = inj₂ (λ ())
+structT x =T= array y = inj₂ (λ ())
+structT x =T= structT x₁ with x eqId x₁
+... | inj₁ x₂ = inj₂ λ {refl → x₂ refl}
+... | inj₂ refl = inj₁ refl
 array x =T= int  = inj₂ (λ ())
 array x =T= doub = inj₂ (λ ())
 array x =T= bool = inj₂ (λ ())
 array x =T= void = inj₂ (λ ())
+array x =T= (structT _) = inj₂ (λ ())
 array x =T= fun y ts = inj₂ (λ ())
 array x =T= array y with x =T= y
 ... | inj₁ refl = inj₁ refl
@@ -151,6 +170,7 @@ fun a ts =T= doub = inj₂ (λ ())
 fun a ts =T= bool = inj₂ (λ ())
 fun a ts =T= void = inj₂ (λ ())
 fun a ts =T= (array _) = inj₂ (λ ())
+fun a ts =T= (structT _) = inj₂ (λ ())
 fun a as =T= fun b bs with eqLists' (a ∷ as) (b ∷ bs)
 ... | inj₁ refl = inj₁ refl
 ... | inj₂ p    = inj₂ λ {refl → p refl}

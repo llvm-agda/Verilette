@@ -16,16 +16,16 @@ open import TypeCheckerMonad
 open import Util 
 open import Javalette.AST
 
-open import TypedSyntax Ident as TS using (Block; Ctx; SymbolTab;
-                                           _∈'_; _∈_; _∉_;
-                                           Num; Eq; Ord; Return; toSet; NonVoid;
-                                           Γ; Δ; Δ'; T; Ts) 
+open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
+                                     _∈'_; _∈_; _∉_;
+                                     Num; Eq; Ord; Return; toSet; NonVoid;
+                                     Γ; Δ; Δ'; T; Ts) 
 open import WellTyped 
 
 
-module CheckExp (Σ : SymbolTab) where
+module CheckExp (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) where
 
-open Expression Σ
+open Expression Σ Χ χ
 
 
 module CheckExp (Γ : Ctx) where
@@ -53,13 +53,17 @@ module CheckExp (Γ : Ctx) where
   infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
   infer (eLitFalse ) = pure (eLitFalse ::: bool)
   infer (eString x)  = error "Encountered string outside of printString"
+  infer (eNull x)    = do inList t p ← lookupTCM x Χ
+                          pure (eNull p ::: structT t)
   infer (eIndex e i) = do i' ::: int ← infer i
                             where i' ::: _ → error "Tried to index with non int expression"
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
-  infer (eNew (nArray t ns)) = do new' ::: t' ← inferNew ns
-                                  pure (eNew new' ::: t')
+  infer (eNew (structT c) []) = do inList t p ← lookupTCM c Χ
+                                   pure (eStruct p ::: structT t)
+  infer (eNew t ns)  = do new' ::: t' ← inferNew ns
+                          pure (eArray new' ::: t')
         where inferNew : (ns : List ArrDecl) → TCM (∃ (WFNew Γ t ns))
               inferNew [] = error "Tried to make a new array without size"
               inferNew (arraySize e ∷ []) = do e' ::: int ← infer e
@@ -74,6 +78,11 @@ module CheckExp (Γ : Ctx) where
                                              where e' ::: _ → error "Only arrays have length attribute"
                                           pure (eLength e' ::: int)
   infer (eAttrib e (ident x₁)) = error $ "Found non-legal attribute: " ++s x₁
+  infer (eDeRef e x) = do e' ::: structT n ← infer e
+                             where e' ::: _ → error "Tried to deref non-struct"
+                          inList fs p ← lookupTCM n χ
+                          inList t p' ← lookupTCM x fs
+                          pure (eDeRef e' p p' ::: t)
   infer (neg e) = do e' ::: t ← infer e
                      p ← ifNum t
                      pure (neg p e' ::: t)
@@ -119,7 +128,7 @@ module CheckExp (Γ : Ctx) where
 
 
 module CheckStatements (T : Type) where
-  open Statements Σ T
+  open Statements Σ Χ χ T
 
   open CheckExp
 
@@ -141,6 +150,12 @@ module CheckStatements (T : Type) where
                                 t , x' ← infer Γ x
                                 arr'   ← checkExp Γ (array t) arr
                                 pure ([] , assIdx arr' i' x')
+  check Γ (assPtr e f x) = do e' ::: structT t ← infer Γ e
+                                 where e' ::: _ → error "Can not defer field from non-struct type"
+                              inList fs p ← lookupTCM t χ
+                              inList t' p' ← lookupTCM f fs
+                              x' ← checkExp Γ t' x
+                              pure ([] , assPtr e' p p' x')
   check Γ (incr x) = do inScope int p ← lookupCtx x Γ
                           where _ → error "Can not increment non-int type"
                         pure ([] , incr x p)
@@ -171,7 +186,7 @@ module CheckStatements (T : Type) where
   ... | Δ ∷ Γ = do p ← ifNonVoid t
                    Δ' , is' ← checkIs Δ is
                    pure (reverse Δ' , decl t p is')
-    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ t is (Δ ∷ Γ)))
+    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ Χ χ t is (Δ ∷ Γ)))
           checkIs Δ [] = pure ([] , [])
           checkIs Δ (noInit id ∷ is) = do p  ← id notIn Δ
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
@@ -183,7 +198,7 @@ module CheckStatements (T : Type) where
 
 module _ where
 
-  open Statements Σ
+  open Statements Σ Χ χ
   open WellTyped.Return
 
   checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Δ) → TCM (Returns  ss')

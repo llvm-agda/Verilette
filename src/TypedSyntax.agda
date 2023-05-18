@@ -1,4 +1,4 @@
-module TypedSyntax (Id : Set) where
+module TypedSyntax where
 
 import Data.Bool    as Bool
 import Data.Integer as Int
@@ -14,7 +14,7 @@ open import Data.Empty using (⊥)
 open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
-open import Javalette.AST using (Type; String; New; nArray)
+open import Javalette.AST using (Type; String) renaming (Ident to Id)
 open Type 
 
 variable
@@ -28,6 +28,9 @@ FunType = ((List Type) × Type)
 
 SymbolTab : Set
 SymbolTab = List (Id × FunType)
+
+TypeTab : Set
+TypeTab = List (Id × List (Id × Type))
 
 Block : Set
 Block = List (Id × Type)
@@ -73,6 +76,7 @@ toSet int = Int.ℤ
 toSet doub = Doub.Float
 toSet void = ⊥
 toSet (array t) = Ptr
+toSet (structT x) = Ptr
 toSet (fun t ts) = ⊥ -- toFun t ts
   where
     toFun : Type → List Type → Set
@@ -117,7 +121,7 @@ data Return (P : (Type → Set)) : Type -> Set where
 
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
-module Typed (Σ : SymbolTab) where
+module Typed (Σ : SymbolTab) (χ : TypeTab) where
 
   data Exp (Γ : Ctx) : Type → Set
   data WFNew (Γ : Ctx) : Type → Set where
@@ -136,13 +140,16 @@ module Typed (Σ : SymbolTab) where
     ENeg    : Num T → Exp Γ T → Exp Γ T
     ENot    : Exp Γ bool → Exp Γ bool
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
-    ENew    : ∀ {t} → WFNew Γ t → Exp Γ t
+    EArray  : ∀ {t} → WFNew Γ t → Exp Γ t
+    EStruct : ∀ {n} → Exp Γ (structT n)
+    ENull   : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
+    EDeRef  : ∀ {n n' fs t} → Exp Γ (structT n) → (n , fs) ∈ χ →  (n' , t) ∈ fs → Exp Γ t
     EPrintStr : String → Exp Γ void
 
 
-module Valid (Σ : SymbolTab) (T : Type) where
-  open Typed Σ
+module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
+  open Typed Σ χ
 
   mutual
     data Stm : (Γ : Ctx) → Set  where
@@ -150,6 +157,7 @@ module Valid (Σ : SymbolTab) (T : Type) where
       SDecl   : (t : Type) → (id : Id) → Exp (Δ ∷ Γ) t → id ∉ Δ → Stm (Δ ∷ Γ)
       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
+      SAssPtr : ∀ {fs f n} → Exp Γ (structT n) → (n , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
       SFor    : (id : Id) → Exp Γ (array t)  → Stms ([ id , t ] ∷ Γ) → Stm Γ 
@@ -159,14 +167,15 @@ module Valid (Σ : SymbolTab) (T : Type) where
 
     nextCtx : {Γ : Ctx} → Stm Γ → Ctx
     nextCtx {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
-    nextCtx {Γ} (SExp x)        = Γ
-    nextCtx {Γ} (SAss id e x)   = Γ
-    nextCtx {Γ} (SAssIdx a i e) = Γ
-    nextCtx {Γ} (SWhile x x₁)   = Γ
-    nextCtx {Γ} (SFor id e ss)  = Γ
-    nextCtx {Γ} (SBlock x)      = Γ
-    nextCtx {Γ} (SIfElse _ _ _) = Γ
-    nextCtx {Γ} (SReturn x)     = Γ
+    nextCtx {Γ} (SAssPtr e p q x) = Γ
+    nextCtx {Γ} (SExp x)          = Γ
+    nextCtx {Γ} (SAss id e x)     = Γ
+    nextCtx {Γ} (SAssIdx a i e)   = Γ
+    nextCtx {Γ} (SWhile x x₁)     = Γ
+    nextCtx {Γ} (SFor id e ss)    = Γ
+    nextCtx {Γ} (SBlock x)        = Γ
+    nextCtx {Γ} (SIfElse _ _ _)   = Γ
+    nextCtx {Γ} (SReturn x)       = Γ
 
     data Stms (Γ : Ctx) : Set where
       SEmpty  : Stms Γ
@@ -179,41 +188,42 @@ module Valid (Σ : SymbolTab) (T : Type) where
 open Typed
 open Valid
 
-data returnStms {T Σ Γ} : (ss : Stms Σ T Γ) → Set
-data returnStm  {  Σ Γ} : (s  : Stm  Σ T Γ) → Set where
-  SReturn : {e : Return (Exp Σ Γ) T} → returnStm (SReturn e)
-  SBlock  : {ss : Stms Σ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
-  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
+data returnStms {T Σ χ Γ} : (ss : Stms Σ χ T Γ) → Set
+data returnStm  {  Σ χ Γ} : (s  : Stm  Σ χ T Γ) → Set where
+  SReturn : {e : Return (Exp Σ χ Γ) T} → returnStm (SReturn e)
+  SBlock  : {ss : Stms Σ χ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
+  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ χ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
   SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
   SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
 
 
-record Def (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
+record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where
   field
     idents : List Id
 
   params = zip idents Ts
 
   field
-    body      : Stms Σ T (reverse params ∷ [])
+    body      : Stms Σ χ T (reverse params ∷ [])
     voidparam : All (_≢ void) Ts
     unique    : Unique params
     return    : returnStms body
 
 
 -- FunList contains a function parameterized by Σ' for each element in Σ.
-FunList : (Σ' Σ : SymbolTab) → Set
-FunList Σ' = TList (λ (_ , (ts , t)) → Def Σ' ts t)
+FunList : (χ : TypeTab) → (Σ' Σ : SymbolTab) → Set
+FunList χ Σ' = TList (λ (_ , (ts , t)) → Def Σ' χ ts t)
 
 record Program : Set where
   field
     BuiltIn : SymbolTab
     Defs    : SymbolTab
+    χ       : TypeTab
   Σ' = BuiltIn ++ Defs
 
   field
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
-    hasDefs    : FunList Σ' Defs
+    hasDefs    : FunList χ Σ' Defs
     uniqueDefs : Unique Σ'
 

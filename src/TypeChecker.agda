@@ -22,7 +22,7 @@ open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to
 open import Function using (case_of_)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
-open import TypedSyntax Id renaming (Program to TypedProgram)
+open import TypedSyntax renaming (Program to TypedProgram)
 open import TypeCheckerMonad
 open import Util
 
@@ -49,8 +49,8 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
 
-checkFun : (Σ : SymbolTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ ts t)
-checkFun Σ t ts (fnDef t' x as (block b)) = do
+checkFun : (Σ : SymbolTab) (Χ : List (Id × Id)) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ  ts t)
+checkFun Σ Χ χ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
     let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
     eqLists ts ts'
@@ -64,29 +64,29 @@ checkFun Σ t ts (fnDef t' x as (block b)) = do
                  ; voidparam = pparam
                  ; unique    = unique
                  ; return    = returnProof returns })
-  where import CheckExp Σ as CH
+  where import CheckExp Σ Χ χ as CH
         open CH.CheckStatements t
-        open import Translate Σ using (toStms)
+        open import Translate Σ χ using (toStms)
 
         import TypeCheckerProofs as TCP 
-        open TCP.ReturnsProof  Σ using (returnProof)
+        open TCP.ReturnsProof  Σ χ using (returnProof)
 
-checkFuns : (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList Σ' Σ)
-checkFuns Σ' [] [] = pure []
-checkFuns Σ' [] (x ∷ def) = error "More functions than in SyTab"
-checkFuns Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
-checkFuns Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  Σ' t ts def
-                                                     defs' ← checkFuns Σ' Σ    defs
-                                                     pure (def' ∷ defs')
+checkFuns : (Χ : List (Id × Id)) (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)
+checkFuns Χ χ Σ' [] [] = pure []
+checkFuns Χ χ Σ' [] (x ∷ def) = error "More functions than in SyTab"
+checkFuns Χ χ Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
+checkFuns Χ χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  Σ' Χ χ t ts def
+                                                         defs' ← checkFuns Χ χ Σ' Σ    defs
+                                                         pure (def' ∷ defs')
 
-typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
-typeCheck b (program defs) = do
+typeCheck : (Χ : List (Id × Id)) (χ : TypeTab) (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
+typeCheck Χ χ b (program defs) = do
     let Σ = map getSymEntry defs
     let Σ' = b +++ Σ
     inList ([] , int) p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
     unique ← checkUnique Σ'
-    defs' ← checkFuns Σ' Σ defs
+    defs' ← checkFuns Χ χ Σ' Σ defs
     pure (record { BuiltIn = b
                  ; Defs    = Σ
                  -- ; hasMain    = p

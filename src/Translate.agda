@@ -14,22 +14,22 @@ open import Data.List.Properties using (ʳ++-defn)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
-open import TypedSyntax Ident
+open import TypedSyntax
 
 
 -- Translating from WellTyped to TypedSyntax
-module Translate (Σ : SymbolTab) where
+module Translate (Σ : SymbolTab) (χ : TypeTab) where
 
-open Expression Σ renaming (WFNew to OldWFNew)
-open Statements Σ
+open Expression Σ  renaming (WFNew to OldWFNew)
+open Statements Σ 
 open WellTyped.Return
 
 open Typed Σ
-open Valid Σ
+open Valid Σ χ
 
 
 -- Every well typed expression can be transformed into our representation
-toExp : Γ ⊢ e ∶ T → Exp Γ T
+toExp : ∀ {Χ} → _⊢_∶_ Χ χ Γ e T → Exp χ Γ T
 toExp (eVar id x p) = EId id x
 toExp (eLitInt x)   = EValue x
 toExp (eLitDoub x)  = EValue x
@@ -38,8 +38,11 @@ toExp eLitFalse     = EValue Bool.false
 toExp (neg p x)     = ENeg p (toExp x)
 toExp (not x)       = ENot   (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
-toExp (eNew n)      = ENew (toNew n)
-  where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew Γ t'
+toExp (eDeRef x p p') = EDeRef (toExp x) p p'
+toExp (eNull x)     = ENull
+toExp (eStruct x)   = EStruct
+toExp (eArray n)    = EArray (toNew n)
+  where toNew : ∀ {Χ n t t'} → OldWFNew Χ χ Γ t n t' → WFNew χ Γ t'
         toNew (nType  x _)  = nType _ (toExp x)
         toNew (nArray x ns) = nArray (toNew ns) (toExp x)
 toExp (eLength x)   = ELength (toExp x)  -- Transform to normal function call?
@@ -60,28 +63,28 @@ toExp (eAnd x y)         = ELogic   (toExp x) LogicOp.&& (toExp y)
 toExp (eOr  x y)         = ELogic   (toExp x) LogicOp.|| (toExp y)
 toExp (ePrintString s) = EPrintStr s
 toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
-  where mapToExp : ∀ {es Ts} → AllPair (Γ ⊢_∶_) es Ts → All (Exp Γ) Ts
+  where mapToExp : ∀ {Χ es Ts} → AllPair (_⊢_∶_ Χ χ Γ) es Ts → All (Exp χ Γ) Ts
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 
-toZero : NonVoid T → Exp Γ T
+toZero : NonVoid T → Exp χ Γ T
 toZero {.int}  NonVoidInt  = EValue Int.0ℤ
 toZero {.doub} NonVoidDoub = EValue 0.0
 toZero {.bool} NonVoidBool = EValue Bool.false
-toZero (NonVoidArray _) = ENew (nType _ (EValue Int.0ℤ))
+toZero (NonVoidArray _) = EArray (nType _ (EValue Int.0ℤ))
 
 
-toDecls : ∀ {is t} → NonVoid t → DeclP Σ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
+toDecls : ∀ {Χ is t} → NonVoid t → DeclP Σ Χ χ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
 toDecls n [] ss = ss
 toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ _ (toZero n) px) SCons toDecls n is ss
 toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ _ (toExp e')          px) SCons toDecls n is ss
 
 
-toStms : ∀ {T Γ ss Δ Δ'} → _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ' → Stms T (Δ ∷ Γ)
-_SCons'_ : ∀ {s} → _⊢_⇒_ T (Δ ∷ Γ) s Δ' → Stms T ((Δ' ++ Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
+toStms : ∀ {Χ T Γ ss Δ Δ'} → _⊢_⇒⇒_ Χ χ T (Δ ∷ Γ) ss Δ' → Stms T (Δ ∷ Γ)
+_SCons'_ : ∀ {Χ s} → _⊢_⇒_ Χ χ T (Δ ∷ Γ) s Δ' → Stms T ((Δ' ++ Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
 toStms (x ∷ ss) = x SCons' (toStms ss)
-toStms {void} {[]} [] = (SReturn vRet) SCons SEmpty
-toStms {_}    {_}  [] = SEmpty
+toStms {_} {void} {[]} [] = (SReturn vRet) SCons SEmpty
+toStms {_} {_}    {_}  [] = SEmpty
 
 _SCons'_ {Δ = Δ} (decl {Δ' = Δ'} t n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
 empty          SCons' ss = ss
@@ -97,3 +100,4 @@ condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' SEmpty) (f SCons' SEmpty)
 while x s      SCons' ss = SWhile (toExp x) (s SCons' SEmpty) SCons ss
 for id e s     SCons' ss = SFor id (toExp e) (s SCons' SEmpty) SCons ss
 sExp x         SCons' ss = SExp (toExp x) SCons ss
+assPtr x p q y SCons' ss = SAssPtr (toExp x) p q (toExp y) SCons ss
