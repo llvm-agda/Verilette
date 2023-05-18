@@ -53,8 +53,8 @@ module CheckExp (Γ : Ctx) where
   infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
   infer (eLitFalse ) = pure (eLitFalse ::: bool)
   infer (eString x)  = error "Encountered string outside of printString"
-  infer (eNull x)    = do inList t p ← lookupTCM x Χ
-                          pure (eNull p ::: structT t)
+  infer (eNull x)    = do inList t p ← lookupTCM x χ
+                          pure (eNull p ::: structT x)
   infer (eIndex e i) = do i' ::: int ← infer i
                             where i' ::: _ → error "Tried to index with non int expression"
                           e' ::: array t ← infer e

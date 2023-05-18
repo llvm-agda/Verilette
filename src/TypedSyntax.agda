@@ -32,6 +32,10 @@ SymbolTab = List (Id × FunType)
 TypeTab : Set
 TypeTab = List (Id × List (Id × Type))
 
+NewTypeTab : Set
+NewTypeTab = List (Id × Id)
+
+
 Block : Set
 Block = List (Id × Type)
 

@@ -5,8 +5,8 @@ open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; con
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import Data.Product using (_×_; _,_; ∃)
-open import Data.List    using (List; _∷_; []) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
+open import Data.Product using (_×_; _,_; ∃; proj₂)
+open import Data.List    using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
 open import Data.String  using (String; fromList; _++_; length)
 
 open import Agda.Builtin.Int using (pos)
@@ -43,6 +43,9 @@ llvmType OldType.void = void
 llvmType (OldType.structT x) = named x *
 llvmType (OldType.array t)  = struct (i32 ∷ array 0 (llvmType t) ∷ []) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
+
+null : ∀ {t} → Operand (t *)
+null = const 0
 
 llvmTypes [] = []
 llvmTypes (x ∷ xs) = llvmType x ∷ llvmTypes xs
@@ -145,6 +148,10 @@ emitTmp {T} x = do tmp ← tmpC <$> get
                    modify λ s → record s { block = operand := x ∷ block s
                                          ; tmpC = suc (tmpC s)}
                    pure operand
+
+-- Might want to do somthing more safe than bitcast
+lookupNamed : ∀ {n fs} {χ : TypeTab} → Operand (named n *) → (n , fs) ∈ χ → CM Γ (Operand (struct (map (llvmType ∘ proj₂) fs) *))
+lookupNamed x x₁ = emitTmp (bitCast x _)
 
 
 withNewVar : (id : Id) → Operand (llvmType t)  → CM (((id , t) ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
@@ -285,9 +292,18 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                                   emit (store new t*)
                                                   pure false
                                             pure pArr
-  compileExp EStruct    = {!!}
-  compileExp ENull      = {!!}
-  compileExp (EDeRef x x₁ x₂) = {!!}
+  compileExp {t = OldType.structT n} EStruct = do size' ← emitTmp (getElemPtr {named n} null 1 [])
+                                                  size ← emitTmp (ptrToInt size')
+                                                  p ← emitTmp (calloc (const (pos 1)) size)
+                                                  emitTmp (bitCast p (named n *))
+  compileExp ENull      = pure null
+  compileExp (EDeRef x p p') = do x' ← compileExp x
+                                  s ← lookupNamed x' p
+                                  ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
+                                  emitTmp (load ptr)
+      where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
+            reShapeP' (here refl) = here refl
+            reShapeP' (there x) = there (reShapeP' x)
   compileExp (ELength x)  = do arr ← compileExp x
                                len ← emitTmp (getElemPtr arr 0 ((struct (here refl)) ∷ [])) -- index 0
                                emitTmp (load len)
@@ -322,7 +338,15 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                                i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
                                                emit (store x' i'')
                                                compileStms ss
-  compileStms (SAssPtr x x₁ x₂ x₃ SCons ss) = {!!}
+  compileStms (SAssPtr e p p' x SCons ss) = do e' ← compileExp e
+                                               x' ← compileExp x
+                                               s ← lookupNamed e' p
+                                               ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
+                                               emit (store x' ptr)
+                                               compileStms ss
+      where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
+            reShapeP' (here refl) = here refl
+            reShapeP' (there x) = there (reShapeP' x)
   compileStms (SFor id arr s SCons ss) = do arr' ← compileExp arr
                                             forArray arr' λ v* → do
                                                   v ← emitTmp (load v*)

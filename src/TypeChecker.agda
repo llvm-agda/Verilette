@@ -36,10 +36,15 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "readInt"     , (       [] , int ))
         ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
 
-getSymEntry : TopDef → (Id × FunType)
-getSymEntry (typeDef t₁ t₂) = {!!}
-getSymEntry (struct x fs) = {!!}
-getSymEntry (fnDef t x as b) = x , map fromArg as , t
+
+getTopDef : List TopDef → (SymbolTab × NewTypeTab × TypeTab)
+getTopDef [] = [] , [] , []
+getTopDef (x ∷ xs) with (Σ , Χ , χ) ← getTopDef xs with x
+... | struct x fs = (Σ , Χ , (x , (map fromField fs)) ∷ χ)
+  where fromField : Field → (Id × Type)
+        fromField (fieldE t x) = x , t
+... | typeDef n' n = (Σ , (n' , n) ∷ Χ , χ)
+... | fnDef t x as b = ((x , map fromArg as , t) ∷ Σ) , Χ , χ
   where fromArg : Arg → Type
         fromArg (argument t x) = t
 
@@ -52,7 +57,7 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
 
-checkFun : (Σ : SymbolTab) (Χ : List (Id × Id)) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ  ts t)
+checkFun : (Σ : SymbolTab) (Χ : List (Id × Id)) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
 checkFun Σ Χ χ t ts (typeDef t₁ t₂) = {!!}
 checkFun Σ Χ χ t ts (struct x fs) = {!!}
 checkFun Σ Χ χ t ts (fnDef t' x as (block b)) = do
@@ -86,9 +91,7 @@ checkFuns Χ χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← check
 
 typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
-    let Χ = {!!}
-    let χ = {!!}
-    let Σ = map getSymEntry defs
+    let Σ , Χ , χ = getTopDef defs
     let Σ' = b +++ Σ
     inList ([] , int) p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"

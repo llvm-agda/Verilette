@@ -6,7 +6,7 @@ Program.   Prog ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Blk ;
 
-TypeDef.   TopDef ::= "typedef" "struct" Type Type ";" ;
+TypeDef.   TopDef ::= "typedef" "struct" Ident Ident ";" ;
 
 Struct.    TopDef ::= "struct" Ident "{" [Field] "}" ";" ;
 
