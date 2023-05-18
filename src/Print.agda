@@ -17,7 +17,7 @@ open import Function using (_$_; _∘_)
 
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id)
 open import Code
-open import TypedSyntax Id using (ArithOp; _∈_)
+open import TypedSyntax using (ArithOp; _∈_)
 open ArithOp renaming (* to mul)
 
 
@@ -32,6 +32,7 @@ pType void        = "void"
 pType (t *)       = pType t ++ "*"
 pType (array n t) = "[ " ++ showℕ n ++ " x " ++ pType t ++ " ]"
 pType (struct ts) = "{ " ++ pTypeList ts ++ " }"
+pType (named (ident x)) = "%" ++ x 
 pType (fun t ts)  = pType t ++ " (" ++ pTypeList ts ++ ")"
 
 pTypeList [] = ""

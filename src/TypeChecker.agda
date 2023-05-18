@@ -1,3 +1,5 @@
+{-# OPTIONS --allow-unsolved-metas #-}
+
 module TypeChecker where
 
 
@@ -34,8 +36,9 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "readInt"     , (       [] , int ))
         ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
 
-
 getSymEntry : TopDef → (Id × FunType)
+getSymEntry (typeDef t₁ t₂) = {!!}
+getSymEntry (struct x fs) = {!!}
 getSymEntry (fnDef t x as b) = x , map fromArg as , t
   where fromArg : Arg → Type
         fromArg (argument t x) = t
@@ -50,6 +53,8 @@ open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
 
 checkFun : (Σ : SymbolTab) (Χ : List (Id × Id)) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ  ts t)
+checkFun Σ Χ χ t ts (typeDef t₁ t₂) = {!!}
+checkFun Σ Χ χ t ts (struct x fs) = {!!}
 checkFun Σ Χ χ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
     let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
@@ -79,8 +84,10 @@ checkFuns Χ χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← check
                                                          defs' ← checkFuns Χ χ Σ' Σ    defs
                                                          pure (def' ∷ defs')
 
-typeCheck : (Χ : List (Id × Id)) (χ : TypeTab) (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
-typeCheck Χ χ b (program defs) = do
+typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
+typeCheck b (program defs) = do
+    let Χ = {!!}
+    let χ = {!!}
     let Σ = map getSymEntry defs
     let Σ' = b +++ Σ
     inList ([] , int) p ← lookupTCM (ident "main") Σ'

@@ -38,11 +38,11 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= Ident "=" Expr  ";" ;
+Ass.       Stmt ::= Expr "=" Expr  ";" ;
 
-AssIdx.    Stmt ::= Expr "[" Expr "]" "=" Expr  ";" ;
+-- AssIdx.    Stmt ::= Expr "[" Expr "]" "=" Expr  ";" ;
 
-AssPtr.    Stmt ::= Expr "->" Ident  "=" Expr  ";" ;
+-- AssPtr.    Stmt ::= Expr "->" Ident  "=" Expr  ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
@@ -106,9 +106,9 @@ Neg.       Expr5 ::= "-" Expr6 ;
 
 Not.       Expr5 ::= "!" Expr6 ;
 
-EAttrib.   Expr5 ::= Expr6 "." Ident ;
+EAttrib.   Expr6 ::= Expr6 "." Ident ;
 
-EDeRef.    Expr5 ::= Expr6 "->" Ident ;
+EDeRef.    Expr6 ::= Expr6 "->" Ident ;
 
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 
@@ -121,7 +121,7 @@ EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 EOr.       Expr ::= Expr1 "||" Expr ;
 
 ArraySize. ArrDecl ::= "[" Expr "]" ;
-terminator ArrDecl "" ;
+separator ArrDecl "" ;
 
 coercions  Expr 6 ;
 

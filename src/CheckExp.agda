@@ -143,19 +143,21 @@ module CheckStatements (T : Type) where
   check Γ empty = pure ([] , empty)
   check Γ (bStmt (block ss)) = do _ , ss' ← checkStms ([] ∷ Γ) ss
                                   pure ([] , bStmt ss')
-  check Γ (ass x e) = do inScope t p ← lookupCtx x Γ
-                         e' ← checkExp Γ t e
-                         pure ([] , ass x p e')
-  check Γ (assIdx arr i x) = do i'     ← checkExp Γ int i
-                                t , x' ← infer Γ x
-                                arr'   ← checkExp Γ (array t) arr
-                                pure ([] , assIdx arr' i' x')
-  check Γ (assPtr e f x) = do e' ::: structT t ← infer Γ e
-                                 where e' ::: _ → error "Can not defer field from non-struct type"
-                              inList fs p ← lookupTCM t χ
-                              inList t' p' ← lookupTCM f fs
-                              x' ← checkExp Γ t' x
-                              pure ([] , assPtr e' p p' x')
+
+  check Γ (ass (eVar x) e) = do inScope t p ← lookupCtx x Γ
+                                e' ← checkExp Γ t e
+                                pure ([] , ass x p e')
+  check Γ (ass (eIndex arr i) x) = do i'     ← checkExp Γ int i
+                                      t , x' ← infer Γ x
+                                      arr'   ← checkExp Γ (array t) arr
+                                      pure ([] , assIdx arr' i' x')
+  check Γ (ass (eDeRef e f) x) = do e' ::: structT t ← infer Γ e
+                                       where e' ::: _ → error "Can not defer field from non-struct type"
+                                    inList fs p ← lookupTCM t χ
+                                    inList t' p' ← lookupTCM f fs
+                                    x' ← checkExp Γ t' x
+                                    pure ([] , assPtr e' p p' x')
+  check Γ (ass _ e) = error "Could not assign to expression"
   check Γ (incr x) = do inScope int p ← lookupCtx x Γ
                           where _ → error "Can not increment non-int type"
                         pure ([] , incr x p)

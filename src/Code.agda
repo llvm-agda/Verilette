@@ -14,7 +14,7 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Javalette.AST using (RelOp) renaming (Ident to Id)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
-open import TypedSyntax Id hiding (toSet; T; Ts; FunType; SymbolTab; *)
+open import TypedSyntax hiding (toSet; T; Ts; FunType; SymbolTab; *)
 
 open import Data.Empty using (⊥)
 
@@ -30,6 +30,7 @@ data Type : Set where
   _* : Type → Type
   struct : List Type → Type
   array : ℕ → Type → Type
+  named : Id → Type
   fun : Type → List Type → Type
 
 variable

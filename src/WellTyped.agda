@@ -132,9 +132,9 @@ module Statements (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) (
     sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
     bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
     decl   : ∀ t {is} → NonVoid t → DeclP Σ Χ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
-    ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass id e ⇒ []
-    assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ assIdx arr i x ⇒ []
-    assPtr : ∀ {t s e fs f n} → Γ ⊢ s ∶ (structT n) → (n , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ assPtr s f e ⇒ []
+    ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ []
+    assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ []
+    assPtr : ∀ {t s e fs f n} → Γ ⊢ s ∶ (structT n) → (n , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
     incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
     decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
     ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []

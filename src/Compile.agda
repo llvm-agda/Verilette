@@ -26,11 +26,12 @@ open RawMonad {{...}}
 
 open import Code
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
-open import TypedSyntax Id hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
-open Typed
-open Valid
+open import TypedSyntax hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
 
 module Compile where
+
+open Typed
+open Valid
 
 
 llvmType  : OldType → Type
@@ -39,6 +40,7 @@ llvmType OldType.int  = i32
 llvmType OldType.doub = float
 llvmType OldType.bool = i1
 llvmType OldType.void = void
+llvmType (OldType.structT x) = named x *
 llvmType (OldType.array t)  = struct (i32 ∷ array 0 (llvmType t) ∷ []) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 
@@ -50,6 +52,7 @@ toSetProof OldType.int  = refl
 toSetProof OldType.doub = refl
 toSetProof OldType.bool = refl
 toSetProof OldType.void = refl
+toSetProof (OldType.structT x) = refl
 toSetProof (OldType.array t) = refl
 toSetProof (OldType.fun t ts) = refl
 
@@ -127,7 +130,7 @@ getPtr p = do ctx ← ctxList <$> get
               pure (lookupPtr ctx p)
 
 -- not sure if functions are Ptr
-lookupFun : SymTab Σ → (id , ts , t) ∈ Σ → Operand (fun (llvmType t) (llvmTypes ts))
+lookupFun : ∀ {Σ} → SymTab Σ → (id , ts , t) ∈ Σ → Operand (fun (llvmType t) (llvmTypes ts))
 lookupFun (x ∷ _)  (here refl) = x
 lookupFun (_ ∷ xs) (there p)   = lookupFun xs p
 
@@ -237,9 +240,9 @@ forArray arr f = do lenPtr ← emitTmp (getElemPtr arr 0 (struct (here refl) ∷
 
 
 -- Compilation using a given SymTab σ
-module _ (σ : SymTab Σ) where
+module _ (σ : SymTab Σ) (χ : TypeTab) where
 
-  compileExp : (e : Exp Σ Γ t) → CM Γ (Operand (llvmType t))
+  compileExp : (e : Exp Σ χ Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
   compileExp (EId id x)        = emitTmp =<< load <$> getPtr x
   compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
@@ -273,8 +276,8 @@ module _ (σ : SymTab Σ) where
                                i' ← compileExp i
                                iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
                                emitTmp (load iPtr)
-  compileExp (ENew new) = callocNew new
-    where callocNew : WFNew Σ Γ t → CM Γ (Operand (llvmType t))
+  compileExp (EArray new) = callocNew new
+    where callocNew : WFNew Σ χ Γ t → CM Γ (Operand (llvmType t))
           callocNew (nType  t len)     = callocArray (llvmType t) =<< compileExp len
           callocNew (nArray {t} n len) = do pArr ← callocArray (llvmType t) =<< compileExp len
                                             forArray pArr λ t* → do
@@ -282,7 +285,9 @@ module _ (σ : SymTab Σ) where
                                                   emit (store new t*)
                                                   pure false
                                             pure pArr
-
+  compileExp EStruct    = {!!}
+  compileExp ENull      = {!!}
+  compileExp (EDeRef x x₁ x₂) = {!!}
   compileExp (ELength x)  = do arr ← compileExp x
                                len ← emitTmp (getElemPtr arr 0 ((struct (here refl)) ∷ [])) -- index 0
                                emitTmp (load len)
@@ -295,7 +300,7 @@ module _ (σ : SymTab Σ) where
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
-    where mapCompileExp : TList (Exp Σ Γ) ts → CM Γ (TList Operand (llvmTypes ts))
+    where mapCompileExp : TList (Exp Σ χ Γ) ts → CM Γ (TList Operand (llvmTypes ts))
           mapCompileExp [] = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 
@@ -303,7 +308,7 @@ module _ (σ : SymTab Σ) where
 
   -- compileStms returns true if it encountered a return
   -- This is used to return early
-  compileStms  : (ss : Stms  Σ t Γ) → CM Γ Bool
+  compileStms  : (ss : Stms  Σ χ t Γ) → CM Γ Bool
   compileStms SEmpty = pure false
   compileStms (SExp x SCons ss) = do compileExp x
                                      compileStms ss
@@ -317,6 +322,7 @@ module _ (σ : SymTab Σ) where
                                                i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
                                                emit (store x' i'')
                                                compileStms ss
+  compileStms (SAssPtr x x₁ x₂ x₃ SCons ss) = {!!}
   compileStms (SFor id arr s SCons ss) = do arr' ← compileExp arr
                                             forArray arr' λ v* → do
                                                   v ← emitTmp (load v*)
@@ -362,7 +368,7 @@ module _ (σ : SymTab Σ) where
                                              pure true
 
 
-  compileFun : GlobalState → Def Σ ts t → (FunDef (llvmSym Σ) (llvmTypes ts) (llvmType t) × GlobalState)
+  compileFun : GlobalState → Def Σ χ ts t → (FunDef (llvmSym Σ) (llvmTypes ts) (llvmType t) × GlobalState)
   compileFun glob def = let s , f = runCM compileBody (initState glob)
                         in f , globalS s
     where open Def def
@@ -379,7 +385,7 @@ module _ (σ : SymTab Σ) where
                                               ; body = body
                                               })
 
-  compileFuns : {Σ' : OldSymbolTab} → FunList Σ Σ' → GlobalState → (FunList' (llvmSym Σ) (llvmSym Σ') × GlobalState)
+  compileFuns : {Σ' : OldSymbolTab} → FunList χ Σ Σ' → GlobalState → (FunList' (llvmSym Σ) (llvmSym Σ') × GlobalState)
   compileFuns []           g = [] , g
   compileFuns (def ∷ defs) g = let defs' , g'  = compileFuns defs g
                                    def'  , g'' = compileFun g' def
@@ -388,7 +394,7 @@ module _ (σ : SymTab Σ) where
 
 compileProgram : Program → llvmProgram
 compileProgram p =
-  let defs , globState = compileFuns (mkSymTab uniqueDefs) hasDefs (gS 0 [])
+  let defs , globState = compileFuns (mkSymTab uniqueDefs) χ hasDefs (gS 0 [])
                    in record
                      { BuiltIn = llvmSym BuiltIn
                      ; Defs    = llvmSym Defs
