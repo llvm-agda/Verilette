@@ -15,8 +15,9 @@ open import Data.Float        using () renaming (show to showℝ)
 
 open import Function using (_$_; _∘_)
 
-open import Javalette.AST using (ident; RelOp) renaming (Ident to Id)
+open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import Code
+open import Compile using (llvmType)
 open import TypedSyntax using (ArithOp; _∈_)
 open ArithOp renaming (* to mul)
 
@@ -32,7 +33,7 @@ pType void        = "void"
 pType (t *)       = pType t ++ "*"
 pType (array n t) = "[ " ++ showℕ n ++ " x " ++ pType t ++ " ]"
 pType (struct ts) = "{ " ++ pTypeList ts ++ " }"
-pType (named (ident x)) = "%" ++ x 
+pType (named (ident x)) = "%" ++ x
 pType (fun t ts)  = pType t ++ " (" ++ pTypeList ts ++ ")"
 
 pTypeList [] = ""
@@ -45,7 +46,7 @@ pOperand {T} (const x) with T
 ... | float = showℝ x
 ... | t *   = "null"  -- is null the only ptr constant?
 ... | (lint n) with n
-... | suc _ = showℤ x 
+... | suc _ = showℤ x
 ... | zero  = showB x
 pOperand {_} (local  (ident x)) = "%" ++ x
 pOperand {_} (global (ident x)) = "@" ++ x
@@ -125,7 +126,7 @@ pFun {T = T} (ident id) def =
         pParams = "(" ++ intersperse ", " (map (λ {(ident i , t) → pType t ++ " %" ++ i}) params) ++ ")"
 
 pProgram : llvmProgram → String
-pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pStrings ∷ pDefs hasDefs
+pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pTypes ∷ unlines pStrings ∷ pDefs hasDefs
   where open llvmProgram p
         pCalloc : String
         pCalloc = "declare i8* @calloc(i32, i32)"
@@ -143,3 +144,10 @@ pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pStri
         pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
         pDefs [] = []
         pDefs (_∷_ {i , _} x xs) = pFun i x ∷ pDefs xs
+
+        pFields : List (Id × OldType) → List String
+        pFields [] = []
+        pFields ((c , f) ∷ xs) = pType (llvmType f) ∷ (pFields xs)
+
+        pTypes : List String
+        pTypes = map (λ { (ident x , c , fs) → "%" ++ x ++ " = type { " ++ (intersperse "," $ pFields fs) ++ "}"  })  χ

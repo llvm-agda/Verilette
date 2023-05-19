@@ -59,7 +59,6 @@ FunType = ((List Type) × Type)
 SymbolTab : Set
 SymbolTab = List (Id × FunType)
 
-
 data Operand (T : Type) : Set where
   const  : toSet T → Operand T
   local  : (id : Id) → Operand T
@@ -101,7 +100,7 @@ data Code : Set where
   [] : Code
   _∷_    :             Instruction T → Code → Code
   _:=_∷_ : Operand T → Instruction T → Code → Code
-  
+
 
 record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
@@ -123,6 +122,7 @@ record llvmProgram : Set where
   field
     BuiltIn : SymbolTab
     Defs    : SymbolTab
+    χ       : TypeTab
   Σ' = BuiltIn ++ Defs
 
   field

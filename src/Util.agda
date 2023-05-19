@@ -25,6 +25,9 @@ open import TypedSyntax
 data InList {A : Set} (γ : List (Id × A)) (x : Id) : Set where
   inList : (a : A) → (x , a) ∈ γ → InList γ x
 
+data InTypeTab (χ : TypeTab) (c : Id) : Set where
+  inList : (n : Id) → (fs : List (Id × Type)) → (n , c , fs) ∈ χ → InTypeTab χ c
+
 showId : Id → String
 showId (ident s) = s
 
@@ -49,6 +52,13 @@ lookupTCM x xs with lookup x xs
 ... | just p = pure p
 ... | nothing = error ("lookup failed: " ++ showId x ++ " was not found")
 
+
+lookupConstructor : (x : Id) → (xs : TypeTab) → TCM (InTypeTab xs x)
+lookupConstructor x [] = error (("Struct " ++ showId x ++ " has no type"))
+lookupConstructor x ((n , c , fs) ∷ xss) with x eqId c
+... | inj₁ z = do inList n' fs' p ← lookupConstructor x xss
+                  pure (inList n' fs' (there p))
+... | inj₂ refl = pure (inList n fs (here refl))
 
 lookupCtx : (x : Id) → (Γ : Ctx) → TCM (InScope Γ x)
 lookupCtx x []   = error ("Var " ++ showId x ++ " is not in scope")
@@ -181,8 +191,8 @@ eqLists' (a ∷ as) (b ∷ bs) with a =T= b
 ... | inj₁ refl with eqLists' as bs
 ... |    inj₁ refl = inj₁ refl
 ... |    inj₂ p    = inj₂ (λ {refl → p refl})
-eqLists' [] (b ∷ bs) = inj₂ (λ ()) 
-eqLists' (a ∷ as) [] = inj₂ (λ ()) 
+eqLists' [] (b ∷ bs) = inj₂ (λ ())
+eqLists' (a ∷ as) [] = inj₂ (λ ())
 
 _=?=_ : (a b : Type) → TCM (a ≡ b)
 a =?= b with a =T= b

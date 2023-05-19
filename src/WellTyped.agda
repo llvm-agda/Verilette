@@ -20,7 +20,7 @@ open import Javalette.AST
 open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
                                     _∈'_; _∈_; _∉_;
                                     Num; Eq; Ord; NonVoid; Basic;
-                                    Γ; Δ; Δ'; T; Ts) 
+                                    Γ; Δ; Δ'; T; Ts)
 open NonVoid
 
 open import TypeCheckerMonad
@@ -47,7 +47,7 @@ data OrdOp : RelOp → Set where
 data EqOp : RelOp → Set where
     eQU : EqOp eQU
     nE  : EqOp nE
-  
+
 
 -- Well formed block
 data WFBlock : (Δ : Block) → Set where
@@ -55,7 +55,7 @@ data WFBlock : (Δ : Block) → Set where
   _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid t → WFBlock Δ → WFBlock ((id , t) ∷ Δ)
 
 
-module Expression (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) where
+module Expression (Σ : SymbolTab) (χ : TypeTab) where
 
 
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
@@ -63,7 +63,7 @@ module Expression (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) w
     nType  : ∀ {e}       → Γ ⊢ e ∶ int → Basic t         → WFNew Γ t (arraySize e ∷ []) (array t)
     nArray : ∀ {e ns t'} → Γ ⊢ e ∶ int → WFNew Γ t ns t' → WFNew Γ t (arraySize e ∷ ns) (array t')
 
-  -- Typing judgements 
+  -- Typing judgements
   data _⊢_∶_ Γ where
     eLitInt   : ∀ x → Γ ⊢ eLitInt x ∶ int
     eLitDoub  : ∀ x → Γ ⊢ eLitDoub x ∶ doub
@@ -88,9 +88,9 @@ module Expression (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) w
     eArray  : ∀ {t t' ns} → WFNew Γ t ns t' → Γ ⊢ eNew t ns ∶ t'
     eLength : ∀ {e t}   →  Γ ⊢ e ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
-    eStruct : ∀ {n n'} → (n , n') ∈ Χ → Γ ⊢ eNew (structT n) [] ∶ structT n'
+    eStruct : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNew (structT c) [] ∶ structT n
     eNull   : ∀ {n fs} → (n , fs) ∈ χ → Γ ⊢ eNull n ∶ structT n
-    eDeRef  : ∀ {n n' fs t} →  Γ ⊢ e ∶ structT n →  (n , fs) ∈ χ →  (n' , t) ∈ fs →   Γ ⊢ eDeRef e n' ∶ t
+    eDeRef  : ∀ {n f c fs t} →  Γ ⊢ e ∶ structT n →  (n , c , fs) ∈ χ →  (f , t) ∈ fs →   Γ ⊢ eDeRef e f ∶ t
 
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
     eEq  : ∀ {op} → EqOp  op → Eq  T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
@@ -107,34 +107,34 @@ _,,_ : Block → Ctx → Ctx
 Δ ,, (Δ' ∷ Γ) = (Δ ++ Δ') ∷ Γ
 
 
-ItemP : (Σ : SymbolTab) → (Χ : List (Ident × Ident)) (χ : TypeTab) → Type → Ctx → Item → Set
-ItemP _ _ _ _ [] _      = ⊥
-ItemP _ _ _ _ (Δ ∷ Γ) (noInit id) =  id ∉ Δ
-ItemP Σ Χ χ t (Δ ∷ Γ) (init id e) = (id ∉ Δ) × ((Δ ∷ Γ) ⊢ e ∶ t)
-  where open Expression Σ Χ χ
+ItemP : (Σ : SymbolTab) → (χ : TypeTab) → Type → Ctx → Item → Set
+ItemP _ _ _ [] _      = ⊥
+ItemP _ _ _ (Δ ∷ Γ) (noInit id) =  id ∉ Δ
+ItemP Σ χ t (Δ ∷ Γ) (init id e) = (id ∉ Δ) × ((Δ ∷ Γ) ⊢ e ∶ t)
+  where open Expression Σ  χ
 
 itemId : Item → Ident
 itemId (noInit x) = x
 itemId (init x e) = x
 
-data DeclP (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) (T : Type) : List Item → (Γ : Ctx) → Block → Set where
-  []  : DeclP Σ Χ χ T [] Γ []
-  _∷_ : ∀ {i is} → ItemP Σ Χ χ T (Δ ∷ Γ) i → DeclP Σ Χ χ T is (((itemId i , T) ∷ Δ) ∷ Γ) Δ' → DeclP Σ Χ χ T (i ∷ is) (Δ ∷ Γ) ((itemId i , T) ∷ Δ')
+data DeclP (Σ : SymbolTab) (χ : TypeTab) (T : Type) : List Item → (Γ : Ctx) → Block → Set where
+  []  : DeclP Σ χ T [] Γ []
+  _∷_ : ∀ {i is} → ItemP Σ χ T (Δ ∷ Γ) i → DeclP Σ χ T is (((itemId i , T) ∷ Δ) ∷ Γ) Δ' → DeclP Σ χ T (i ∷ is) (Δ ∷ Γ) ((itemId i , T) ∷ Δ')
 
 
-module Statements (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) (T : Type) where
+module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
-  open Expression Σ Χ χ
+  open Expression Σ χ
 
   data _⊢_⇒⇒_ (Γ : Ctx) : List Stmt → Block → Set
   data _⊢_⇒_  (Γ : Ctx) :      Stmt → Block → Set where
     empty  : Γ ⊢ empty ⇒ []
     sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
     bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
-    decl   : ∀ t {is} → NonVoid t → DeclP Σ Χ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
+    decl   : ∀ t {is} → NonVoid t → DeclP Σ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
     ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ []
     assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ []
-    assPtr : ∀ {t s e fs f n} → Γ ⊢ s ∶ (structT n) → (n , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
+    assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
     incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
     decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
     ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []
@@ -143,16 +143,16 @@ module Statements (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) (
     condElse : ∀ {t f} → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ t ⇒ Δ  →  ([] ∷ Γ) ⊢ f ⇒ Δ' →  Γ ⊢ condElse e t f ⇒ []
     while    : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Δ →                        Γ ⊢ while e s ⇒ []
     for      : ∀ {t e s} id →  Γ ⊢ e ∶ array t  →  ([ id , t ] ∷ Γ) ⊢ s ⇒ Δ'  →  Γ ⊢ for t id e s ⇒ []
-    
+
   data _⊢_⇒⇒_ Γ where
     []  : Γ ⊢ [] ⇒⇒ []
     _∷_ : ∀ {s ss} → Γ ⊢ s ⇒ Δ  →  (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'  →  Γ ⊢ s ∷ ss ⇒⇒ (Δ' ++ Δ)
 
 
-module Return {Σ : SymbolTab} {Χ : List (Ident × Ident)} {χ : TypeTab} where
+module Return {Σ : SymbolTab} x{χ : TypeTab} where
 
-  open Statements Σ Χ χ
-  open Expression Σ Χ χ
+  open Statements Σ χ
+  open Expression Σ χ
 
   data Returns' {Γ : Ctx} : ∀ {  T} {s  :      Stmt} → (_⊢_⇒_  T Γ s   Δ) → Set
   data Returns            : ∀ {Γ T} {ss : List Stmt} → (_⊢_⇒⇒_ T Γ ss  Δ) → Set where
@@ -170,10 +170,10 @@ module Return {Σ : SymbolTab} {Χ : List (Ident × Ident)} {χ : TypeTab} where
                      → Returns' s1' → Returns' s2' → Returns' (condElse eB s1' s2')
 
 
-module FunDef (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) where
+module FunDef (Σ : SymbolTab) (χ : TypeTab) where
 
-  open Statements Σ Χ χ
-  open Return {Σ} {Χ} {χ}
+  open Statements Σ χ
+  open Return {Σ} {χ}
 
   fromArgs : List Arg → Block
   fromArgs [] = []

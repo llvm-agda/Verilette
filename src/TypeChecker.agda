@@ -1,5 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-
 module TypeChecker where
 
 
@@ -37,7 +35,13 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
 
 
-getTopDef : List TopDef → (SymbolTab × NewTypeTab × TypeTab)
+mergeΧχ : List (Id × Id) → List (Id × List (Id × Type)) → TCM TypeTab
+mergeΧχ [] χ            = pure []
+mergeΧχ ((n , c) ∷ Χ) χ = do inList fs p ← lookupTCM n χ
+                             rest ← mergeΧχ Χ χ
+                             pure ((n , c , fs) ∷ rest)
+
+getTopDef : List TopDef → (SymbolTab × List (Id × Id) × List (Id × List (Id × Type)))
 getTopDef [] = [] , [] , []
 getTopDef (x ∷ xs) with (Σ , Χ , χ) ← getTopDef xs with x
 ... | struct x fs = (Σ , Χ , (x , (map fromField fs)) ∷ χ)
@@ -57,10 +61,10 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
 
-checkFun : (Σ : SymbolTab) (Χ : List (Id × Id)) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
-checkFun Σ Χ χ t ts (typeDef t₁ t₂) = {!!}
-checkFun Σ Χ χ t ts (struct x fs) = {!!}
-checkFun Σ Χ χ t ts (fnDef t' x as (block b)) = do
+checkFun : (Σ : SymbolTab) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
+checkFun Σ χ t ts (typeDef t₁ t₂) = {!!}
+checkFun Σ χ t ts (struct x fs) = {!!}
+checkFun Σ χ t ts (fnDef t' x as (block b)) = do
     refl ← t =?= t'
     let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
     eqLists ts ts'
@@ -74,29 +78,32 @@ checkFun Σ Χ χ t ts (fnDef t' x as (block b)) = do
                  ; voidparam = pparam
                  ; unique    = unique
                  ; return    = returnProof returns })
-  where import CheckExp Σ Χ χ as CH
+  where import CheckExp Σ χ as CH
         open CH.CheckStatements t
         open import Translate Σ χ using (toStms)
 
-        import TypeCheckerProofs as TCP 
+        import TypeCheckerProofs as TCP
         open TCP.ReturnsProof  Σ χ using (returnProof)
 
-checkFuns : (Χ : List (Id × Id)) (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)
-checkFuns Χ χ Σ' [] [] = pure []
-checkFuns Χ χ Σ' [] (x ∷ def) = error "More functions than in SyTab"
-checkFuns Χ χ Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
-checkFuns Χ χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  Σ' Χ χ t ts def
-                                                         defs' ← checkFuns Χ χ Σ' Σ    defs
-                                                         pure (def' ∷ defs')
+checkFuns : (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)
+checkFuns χ Σ' [] [] = pure []
+checkFuns χ Σ' [] (x ∷ def) = error "More functions than in SyTab"
+checkFuns χ Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
+checkFuns χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) = do def'  ← checkFun  Σ' χ t ts def
+                                                       defs' ← checkFuns χ Σ' Σ    defs
+                                                       pure (def' ∷ defs')
+
+
 
 typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ , Χ , χ = getTopDef defs
     let Σ' = b +++ Σ
+    Ωχ ← mergeΧχ Χ χ
     inList ([] , int) p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
     unique ← checkUnique Σ'
-    defs' ← checkFuns Χ χ Σ' Σ defs
+    defs' ← checkFuns Ωχ Σ' Σ defs
     pure (record { BuiltIn = b
                  ; Defs    = Σ
                  -- ; hasMain    = p

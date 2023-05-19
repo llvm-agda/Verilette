@@ -12,15 +12,15 @@ import Data.Float as Doub
 
 
 open import Javalette.AST using (Ident; Type; Stmt); open Type
-open import TypedSyntax Ident as TS using (Block; Ctx; SymbolTab
-                                          ; _∈'_; _∈_; _∉_
-                                          ; T; Γ; Δ; Δ'
-                                          ; Num; Eq; Ord; Return; toSet) 
+open import TypedSyntax  as TS using (Block; Ctx; SymbolTab
+                                             ; _∈'_; _∈_; _∉_
+                                             ; T; Γ; Δ; Δ'
+                                             ; Num; Eq; Ord; Return; toSet)
 open import WellTyped
 open import CheckExp
 open import Translate
 
-module Semantics (Σ : SymbolTab) where 
+module Semantics (Σ : SymbolTab) where
 
 
 open Expression Σ
@@ -35,7 +35,7 @@ module SourceExp {Γ : Ctx} where
   data _↓_ : (Γ ⊢ e ∶ T) → toSet T → Set where
     eLitInt   : ∀ x → eLitInt  x ↓ x
     eLitDoub  : ∀ x → eLitDoub x ↓ x
-    eLitTrue  : eLitTrue  ↓ Bool.true 
+    eLitTrue  : eLitTrue  ↓ Bool.true
     eLitFalse : eLitFalse ↓ Bool.false
 
     -- eVar : ∀ {t} id p → eVar id p ↓ {!!}
@@ -122,7 +122,7 @@ module SemanticsExp (Γ : Ctx) where
   open SourceExp {Γ}
   open TargetExp {Γ} renaming (_↓_ to _↓t_; _⇓_ to _⇓t_)
   open TS.Typed Σ
-  
+
   private
     variable
       r r' : toSet T
@@ -176,7 +176,7 @@ module SourceStms (T : Type) where
     variable
       s  : Stmt
       ss : List Stmt
-  
+
   data _⤋_ {Γ : Ctx} : (Γ ⊢ s  ⇒  Δ) → List String → Set
   data _⇊_ {Γ : Ctx} : (Γ ⊢ ss ⇒⇒ Δ) → List String → Set where
     []  : [] ⇊ []

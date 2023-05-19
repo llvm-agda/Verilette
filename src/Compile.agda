@@ -63,7 +63,7 @@ BlockList : Block → Set
 BlockList Δ = TList (λ (id , t) → Operand (llvmType t *)) Δ
 
 CtxList : Ctx → Set
-CtxList Γ = TList BlockList  Γ 
+CtxList Γ = TList BlockList  Γ
 
 SymTab : OldSymbolTab → Set
 SymTab Σ = TList (λ (id , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts))) Σ
@@ -78,8 +78,8 @@ open GlobalState
 
 record CMState (Γ : Ctx) : Set where
   constructor cMS
-  field 
-    globalS : GlobalState 
+  field
+    globalS : GlobalState
     varC tmpC labelC : ℕ
     ctxList : CtxList Γ
     block   : Code
@@ -96,7 +96,7 @@ removeBlock : CMState (Δ ∷ Γ) → CMState Γ
 removeBlock (cMS g v t l (_ ∷ c) b) = cMS g v t l (c) b
 
 addVar : Operand (llvmType t *) → CMState (Δ  ∷ Γ) → CMState (((id , t) ∷ Δ) ∷ Γ)
-addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b 
+addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b
 
 removeVar : ∀ {id t} → CMState (((id , t) ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
 removeVar (cMS g v t l ((_ ∷ δ) ∷ γ) b) = cMS g v t l (δ  ∷ γ) b
@@ -150,7 +150,7 @@ emitTmp {T} x = do tmp ← tmpC <$> get
                    pure operand
 
 -- Might want to do somthing more safe than bitcast
-lookupNamed : ∀ {n fs} {χ : TypeTab} → Operand (named n *) → (n , fs) ∈ χ → CM Γ (Operand (struct (map (llvmType ∘ proj₂) fs) *))
+lookupNamed : ∀ {n c fs} {χ : TypeTab} → Operand (named n *) → (n , c , fs) ∈ χ → CM Γ (Operand (struct (map (llvmType ∘ proj₂) fs) *))
 lookupNamed x x₁ = emitTmp (bitCast x _)
 
 
@@ -171,7 +171,7 @@ inNewBlock m = do x ← get
                   pure a
 
 newLabel : CM Γ Label
-newLabel = do l ← labelC <$> get 
+newLabel = do l ← labelC <$> get
               modify λ s → record s {labelC = suc (labelC s)}
               pure $ ident ("L" ++ showℕ l)
 
@@ -292,10 +292,11 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                                   emit (store new t*)
                                                   pure false
                                             pure pArr
-  compileExp {t = OldType.structT n} EStruct = do size' ← emitTmp (getElemPtr {named n} null 1 [])
-                                                  size ← emitTmp (ptrToInt size')
-                                                  p ← emitTmp (calloc (const (pos 1)) size)
-                                                  emitTmp (bitCast p (named n *))
+  compileExp (EStruct {n}) = do size' ← emitTmp (getElemPtr {named n} null 1 [])
+                                size ← emitTmp (ptrToInt size')
+                                p ← emitTmp (calloc (const (pos 1)) size)
+                                emitTmp (bitCast p (named n *))
+
   compileExp ENull      = pure null
   compileExp (EDeRef x p p') = do x' ← compileExp x
                                   s ← lookupNamed x' p
@@ -432,4 +433,3 @@ compileProgram p =
 
         help : FunList' (llvmSym (BuiltIn +++ Defs)) (llvmSym Defs) → FunList' (llvmSym BuiltIn +++ llvmSym Defs) (llvmSym Defs)
         help x rewrite llvmSymHom BuiltIn Defs = x
-

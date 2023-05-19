@@ -15,7 +15,7 @@ open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 
 open import Javalette.AST using (Type; String) renaming (Ident to Id)
-open Type 
+open Type
 
 variable
   A B : Set
@@ -30,10 +30,8 @@ SymbolTab : Set
 SymbolTab = List (Id × FunType)
 
 TypeTab : Set
-TypeTab = List (Id × List (Id × Type))
+TypeTab = List (Id × (Id × List (Id × Type)))
 
-NewTypeTab : Set
-NewTypeTab = List (Id × Id)
 
 
 Block : Set
@@ -148,7 +146,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EStruct : ∀ {n} → Exp Γ (structT n)
     ENull   : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
-    EDeRef  : ∀ {n n' fs t} → Exp Γ (structT n) → (n , fs) ∈ χ →  (n' , t) ∈ fs → Exp Γ t
+    EDeRef  : ∀ {n n' fs t c} → Exp Γ (structT n) → (n , c , fs) ∈ χ →  (n' , t) ∈ fs → Exp Γ t
     EPrintStr : String → Exp Γ void
 
 
@@ -161,10 +159,10 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
       SDecl   : (t : Type) → (id : Id) → Exp (Δ ∷ Γ) t → id ∉ Δ → Stm (Δ ∷ Γ)
       SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
-      SAssPtr : ∀ {fs f n} → Exp Γ (structT n) → (n , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
+      SAssPtr : ∀ {fs f n c} → Exp Γ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
-      SFor    : (id : Id) → Exp Γ (array t)  → Stms ([ id , t ] ∷ Γ) → Stm Γ 
+      SFor    : (id : Id) → Exp Γ (array t)  → Stms ([ id , t ] ∷ Γ) → Stm Γ
       SBlock  : Stms ([] ∷ Γ) → Stm Γ
       SIfElse : Exp Γ bool → Stms ([] ∷ Γ) → Stms ([] ∷ Γ) → Stm Γ
       SReturn : Return (Exp Γ) T → Stm Γ
@@ -230,4 +228,3 @@ record Program : Set where
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     hasDefs    : FunList χ Σ' Defs
     uniqueDefs : Unique Σ'
-

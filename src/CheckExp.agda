@@ -1,4 +1,4 @@
-
+{-# OPTIONS --allow-unsolved-metas #-}
 open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_) renaming (_++_ to _++s_)
@@ -12,39 +12,39 @@ open import Data.List.Relation.Unary.All using (All; reduce); open All
 open import Agda.Builtin.Bool using (true; false)
 
 
-open import TypeCheckerMonad 
-open import Util 
+open import TypeCheckerMonad
+open import Util
 open import Javalette.AST
 
 open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
                                      _∈'_; _∈_; _∉_;
                                      Num; Eq; Ord; Return; toSet; NonVoid;
-                                     Γ; Δ; Δ'; T; Ts) 
-open import WellTyped 
+                                     Γ; Δ; Δ'; T; Ts)
+open import WellTyped
 
 
-module CheckExp (Σ : SymbolTab) (Χ : List (Ident × Ident)) (χ : TypeTab) where
+module CheckExp (Σ : SymbolTab) (χ : TypeTab) where
 
-open Expression Σ Χ χ
+open Expression Σ χ
 
 
 module CheckExp (Γ : Ctx) where
 
-  pattern _:::_ e t = t , e 
-  
+  pattern _:::_ e t = t , e
+
   infer     : (e  :      Expr) → TCM (∃ (Γ ⊢ e ∶_))
   inferList : (es : List Expr) → TCM (∃ (AllPair (Γ ⊢_∶_) es) )
   inferList [] = pure ([] ::: [])
   inferList (e ∷ es) = do e'  ::: t  ← infer e
                           es' ::: ts ← inferList es
                           pure ((e' ∷ es') ::: (t ∷ ts))
-  
+
   inferPair : (x y : Expr) → TCM (∃ (λ t → (Γ ⊢ x ∶ t) × (Γ ⊢ y ∶ t) ))
   inferPair x y = do x' ::: t1 ← infer x
                      y' ::: t2 ← infer y
                      refl ← t1 =?= t2
                      pure ((x' , y') ::: t1)
-  
+
   infer (eVar x)  = do inScope t p ← lookupCtx x Γ
                        n ← ifNonVoid t
                        pure (eVar x p n ::: t)
@@ -60,8 +60,9 @@ module CheckExp (Γ : Ctx) where
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
-  infer (eNew (structT c) []) = do inList t p ← lookupTCM c Χ
-                                   pure (eStruct p ::: structT t)
+  infer (eNew (structT c) []) = do inList n fs p ← lookupConstructor c χ
+                                   pure (eStruct p ::: structT n)
+
   infer (eNew t ns)  = do new' ::: t' ← inferNew ns
                           pure (eArray new' ::: t')
         where inferNew : (ns : List ArrDecl) → TCM (∃ (WFNew Γ t ns))
@@ -80,7 +81,7 @@ module CheckExp (Γ : Ctx) where
   infer (eAttrib e (ident x₁)) = error $ "Found non-legal attribute: " ++s x₁
   infer (eDeRef e x) = do e' ::: structT n ← infer e
                              where e' ::: _ → error "Tried to deref non-struct"
-                          inList fs p ← lookupTCM n χ
+                          inList ( c , fs ) p ← lookupTCM n χ
                           inList t p' ← lookupTCM x fs
                           pure (eDeRef e' p p' ::: t)
   infer (neg e) = do e' ::: t ← infer e
@@ -98,7 +99,7 @@ module CheckExp (Γ : Ctx) where
   infer (eAdd x op y) = do (x' , y') ::: t ← inferPair x y
                            p ← ifNum t
                            pure (eAdd p op x' y' ::: t)
-  
+
   infer (eRel x op y) with inferPair x y
   ... | inj₁ s = error s
   ... | inj₂ ((x' , y') ::: t) with op
@@ -119,7 +120,7 @@ module CheckExp (Γ : Ctx) where
                          es' ::: ts' ← inferList es
                          refl ← eqLists ts ts'
                          pure (eApp x p es' ::: t)
-  
+
   -- If an expression typechecks it is well typed (in our type semantics) -- Soundness
   checkExp : (t : Type) → (e : Expr) → TCM (Γ ⊢ e ∶ t)
   checkExp t e = do e' ::: t' ← infer e
@@ -128,7 +129,7 @@ module CheckExp (Γ : Ctx) where
 
 
 module CheckStatements (T : Type) where
-  open Statements Σ Χ χ T
+  open Statements Σ χ T
 
   open CheckExp
 
@@ -153,7 +154,7 @@ module CheckStatements (T : Type) where
                                       pure ([] , assIdx arr' i' x')
   check Γ (ass (eDeRef e f) x) = do e' ::: structT t ← infer Γ e
                                        where e' ::: _ → error "Can not defer field from non-struct type"
-                                    inList fs p ← lookupTCM t χ
+                                    inList (c , fs) p ← lookupTCM t χ
                                     inList t' p' ← lookupTCM f fs
                                     x' ← checkExp Γ t' x
                                     pure ([] , assPtr e' p p' x')
@@ -188,7 +189,7 @@ module CheckStatements (T : Type) where
   ... | Δ ∷ Γ = do p ← ifNonVoid t
                    Δ' , is' ← checkIs Δ is
                    pure (reverse Δ' , decl t p is')
-    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ Χ χ t is (Δ ∷ Γ)))
+    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ χ t is (Δ ∷ Γ)))
           checkIs Δ [] = pure ([] , [])
           checkIs Δ (noInit id ∷ is) = do p  ← id notIn Δ
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
@@ -200,7 +201,7 @@ module CheckStatements (T : Type) where
 
 module _ where
 
-  open Statements Σ Χ χ
+  open Statements Σ χ
   open WellTyped.Return
 
   checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Δ) → TCM (Returns  ss')
