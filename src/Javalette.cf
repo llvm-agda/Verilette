@@ -98,17 +98,17 @@ EIndex.    Expr6 ::= Expr6 "[" Expr "]" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
-ENew.      Expr6 ::= "new" Type [ArrDecl] ;
-
 EString.   Expr6 ::= String ;
+
+EDeRef.    Expr6 ::= Expr6 "->" Ident ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
 Not.       Expr5 ::= "!" Expr6 ;
 
-EAttrib.   Expr6 ::= Expr6 "." Ident ;
+ENew.      Expr5 ::= "new" Type [ArrDecl] ;
 
-EDeRef.    Expr6 ::= Expr6 "->" Ident ;
+EAttrib.   Expr5  ::= Expr5  "." Ident ;
 
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 
