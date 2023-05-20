@@ -149,7 +149,7 @@ module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     _∷_ : ∀ {s ss} → Γ ⊢ s ⇒ Δ  →  (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'  →  Γ ⊢ s ∷ ss ⇒⇒ (Δ' ++ Δ)
 
 
-module Return {Σ : SymbolTab} x{χ : TypeTab} where
+module Return {Σ : SymbolTab} {χ : TypeTab} where
 
   open Statements Σ χ
   open Expression Σ χ

@@ -68,10 +68,11 @@ toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 
 toZero : NonVoid T → Exp χ Γ T
-toZero {.int}  NonVoidInt  = EValue Int.0ℤ
-toZero {.doub} NonVoidDoub = EValue 0.0
-toZero {.bool} NonVoidBool = EValue Bool.false
-toZero (NonVoidArray _) = EArray (nType _ (EValue Int.0ℤ))
+toZero NonVoidInt  = EValue Int.0ℤ
+toZero NonVoidDoub = EValue 0.0
+toZero NonVoidBool = EValue Bool.false
+toZero (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
+toZero NonVoidStruct = EStruct
 
 
 toDecls : ∀ {is t} → NonVoid t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)

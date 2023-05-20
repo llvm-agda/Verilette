@@ -1,5 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
 open import Data.List.Relation.Unary.All using (All); open All
@@ -24,7 +22,7 @@ open RawMonadState {{...}}
 open RawMonad {{...}}
 
 
-open import Code
+open import Code hiding (TypeTab)
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import TypedSyntax hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
 
@@ -425,6 +423,7 @@ compileProgram p =
                      ; Defs    = llvmSym Defs
                      ; Strings = strings globState
                      ; hasDefs = help defs
+                     ; χ = map (λ {(n , c , fs) → n , map (llvmType ∘ proj₂) fs}) χ
                      }
   where open Program p
         mkSymTab : Unique Σ → SymTab Σ

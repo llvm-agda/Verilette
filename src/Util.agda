@@ -113,8 +113,8 @@ ifNonVoid bool       = pure NonVoidBool
 ifNonVoid int        = pure NonVoidInt
 ifNonVoid doub       = pure NonVoidDoub
 ifNonVoid (array t)  = NonVoidArray <$> ifNonVoid t
+ifNonVoid (structT _) = pure NonVoidStruct
 ifNonVoid void       = error "Void is not-nonVoid"
-ifNonVoid (structT _)  = error "Struct is not-nonVoid"
 ifNonVoid (fun T ts) = error "Function is not-nonVoid"
 
 ifBasic : (T : Type) → TCM (Basic T)

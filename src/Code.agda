@@ -14,7 +14,7 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Javalette.AST using (RelOp) renaming (Ident to Id)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
-open import TypedSyntax hiding (toSet; T; Ts; FunType; SymbolTab; *)
+open import TypedSyntax hiding (toSet; T; Ts; FunType; SymbolTab; TypeTab; *)
 
 open import Data.Empty using (⊥)
 
@@ -58,6 +58,9 @@ FunType = ((List Type) × Type)
 
 SymbolTab : Set
 SymbolTab = List (Id × FunType)
+
+TypeTab : Set
+TypeTab = List (Id × List Type)
 
 data Operand (T : Type) : Set where
   const  : toSet T → Operand T

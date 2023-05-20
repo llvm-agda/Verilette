@@ -105,10 +105,11 @@ data Num : (T : Type) → Set where
   NumDouble : Num doub
 
 data NonVoid : (T : Type) → Set where
-  NonVoidInt   : NonVoid int
-  NonVoidDoub  : NonVoid doub
-  NonVoidBool  : NonVoid bool
-  NonVoidArray : NonVoid t → NonVoid (array t)
+  NonVoidInt    : NonVoid int
+  NonVoidDoub   : NonVoid doub
+  NonVoidBool   : NonVoid bool
+  NonVoidArray  : NonVoid t → NonVoid (array t)
+  NonVoidStruct : ∀ {n} → NonVoid (structT n)
 
 data Basic : (T : Type) → Set where
   BasicInt   : Basic int

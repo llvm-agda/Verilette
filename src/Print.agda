@@ -142,12 +142,8 @@ pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pType
                             "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) BuiltIn
 
         pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
-        pDefs [] = []
+        pDefs []                 = []
         pDefs (_∷_ {i , _} x xs) = pFun i x ∷ pDefs xs
 
-        pFields : List (Id × OldType) → List String
-        pFields [] = []
-        pFields ((c , f) ∷ xs) = pType (llvmType f) ∷ (pFields xs)
-
         pTypes : List String
-        pTypes = map (λ { (ident x , c , fs) → "%" ++ x ++ " = type { " ++ (intersperse "," $ pFields fs) ++ "}"  })  χ
+        pTypes = map (λ { (ident x , ts) → "%" ++ x ++ " = type { " ++ intersperse ", " (map pType ts) ++ "}"  })  χ
