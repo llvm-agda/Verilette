@@ -198,6 +198,7 @@ fromEq : Eq t → FirstClass (llvmType t)
 fromEq EqInt    = lint 31
 fromEq EqBool   = lint 0
 fromEq EqDouble = float
+fromEq (EqStruct {n}) = ptrFC (named n)
 
 
 calloc : (n : Operand i32) → Operand i32 → Instruction (i8 *)

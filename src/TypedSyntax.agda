@@ -95,6 +95,7 @@ data Eq : (T : Type) → Set where
   EqInt : Eq int
   EqBool : Eq bool
   EqDouble : Eq doub
+  EqStruct : ∀ {n} → Eq (structT n)
 
 data Ord : (T : Type) → Set where
   OrdInt : Ord int
@@ -104,17 +105,18 @@ data Num : (T : Type) → Set where
   NumInt : Num int
   NumDouble : Num doub
 
-data NonVoid : (T : Type) → Set where
-  NonVoidInt    : NonVoid int
-  NonVoidDoub   : NonVoid doub
-  NonVoidBool   : NonVoid bool
-  NonVoidArray  : NonVoid t → NonVoid (array t)
-  NonVoidStruct : ∀ {n} → NonVoid (structT n)
+data NonVoid (χ : TypeTab) : (T : Type) → Set where
+  NonVoidInt    : NonVoid χ int
+  NonVoidDoub   : NonVoid χ doub
+  NonVoidBool   : NonVoid χ bool
+  NonVoidArray  : NonVoid χ t → NonVoid χ (array t)
+  NonVoidStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → NonVoid χ (structT n)
 
-data Basic : (T : Type) → Set where
-  BasicInt   : Basic int
-  BasicDoub  : Basic doub
-  BasicBool  : Basic bool
+data Basic (χ : TypeTab) : (T : Type) → Set where
+  BasicInt   : Basic χ int
+  BasicDoub  : Basic χ doub
+  BasicBool  : Basic χ bool
+  BasicStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → Basic χ (structT n)
 
 
 data Return (P : (Type → Set)) : Type -> Set where

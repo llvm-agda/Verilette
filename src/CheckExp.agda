@@ -46,8 +46,7 @@ module CheckExp (Γ : Ctx) where
                      pure ((x' , y') ::: t1)
 
   infer (eVar x)  = do inScope t p ← lookupCtx x Γ
-                       n ← ifNonVoid t
-                       pure (eVar x p n ::: t)
+                       pure (eVar x p ::: t)
   infer (eLitInt x ) = pure (eLitInt  x ::: int)
   infer (eLitDoub x) = pure (eLitDoub x ::: doub)
   infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
@@ -69,7 +68,7 @@ module CheckExp (Γ : Ctx) where
               inferNew [] = error "Tried to make a new array without size"
               inferNew (arraySize e ∷ []) = do e' ::: int ← infer e
                                                   where e' ::: _ → error "Tried to create a new array with non-int expression"
-                                               b ← ifBasic t
+                                               b ← ifBasic χ t
                                                pure (nType e' b ::: array t)
               inferNew (arraySize e ∷ ns) = do e' ::: int ← infer e
                                                   where e' ::: _ → error "Tried to create a new array with non-int expression"
@@ -186,7 +185,7 @@ module CheckStatements (T : Type) where
                         pure ([] , sExp e')
   check Γ (decl t is) with Γ
   ... | []    = error "Can not declare variable in empty Ctx"
-  ... | Δ ∷ Γ = do p ← ifNonVoid t
+  ... | Δ ∷ Γ = do p ← ifNonVoid χ t
                    Δ' , is' ← checkIs Δ is
                    pure (reverse Δ' , decl t p is')
     where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ χ t is (Δ ∷ Γ)))

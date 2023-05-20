@@ -23,8 +23,6 @@ open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
                                     Γ; Δ; Δ'; T; Ts)
 open NonVoid
 
-open import TypeCheckerMonad
--- open import Util
 
 module WellTyped where
 
@@ -50,9 +48,9 @@ data EqOp : RelOp → Set where
 
 
 -- Well formed block
-data WFBlock : (Δ : Block) → Set where
-  []  : WFBlock []
-  _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid t → WFBlock Δ → WFBlock ((id , t) ∷ Δ)
+data WFBlock (χ : TypeTab) : (Δ : Block) → Set where
+  []  : WFBlock χ []
+  _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid χ t → WFBlock χ Δ → WFBlock χ ((id , t) ∷ Δ)
 
 
 module Expression (Σ : SymbolTab) (χ : TypeTab) where
@@ -60,7 +58,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
 
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
   data WFNew (Γ : Ctx) (t : Type) : List ArrDecl → Type → Set where
-    nType  : ∀ {e}       → Γ ⊢ e ∶ int → Basic t         → WFNew Γ t (arraySize e ∷ []) (array t)
+    nType  : ∀ {e}       → Γ ⊢ e ∶ int → Basic χ t         → WFNew Γ t (arraySize e ∷ []) (array t)
     nArray : ∀ {e ns t'} → Γ ⊢ e ∶ int → WFNew Γ t ns t' → WFNew Γ t (arraySize e ∷ ns) (array t')
 
   -- Typing judgements
@@ -73,7 +71,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     -- id should be unique in its block
     -- and the block should contain the first occurance of id in the context.
     -- This is needed for completeness, see checkProof
-    eVar : ∀ {t} id → (id , t)      ∈' Γ → NonVoid t               → Γ ⊢ eVar id    ∶ t
+    eVar : ∀ {t} id → (id , t)      ∈' Γ                           → Γ ⊢ eVar id    ∶ t
     eApp : ∀     id → (id , Ts , T) ∈  Σ → AllPair (Γ ⊢_∶_) es Ts → Γ ⊢ eApp id es ∶ T
 
     neg : Num T → Γ ⊢ e ∶ T    → Γ ⊢ neg e ∶ T
@@ -89,7 +87,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     eLength : ∀ {e t}   →  Γ ⊢ e ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
     eStruct : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNew (structT c) [] ∶ structT n
-    eNull   : ∀ {n fs} → (n , fs) ∈ χ → Γ ⊢ eNull n ∶ structT n
+    eNull   : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNull n ∶ structT n
     eDeRef  : ∀ {n f c fs t} →  Γ ⊢ e ∶ structT n →  (n , c , fs) ∈ χ →  (f , t) ∈ fs →   Γ ⊢ eDeRef e f ∶ t
 
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool
@@ -131,7 +129,7 @@ module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     empty  : Γ ⊢ empty ⇒ []
     sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
     bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
-    decl   : ∀ t {is} → NonVoid t → DeclP Σ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
+    decl   : ∀ t {is} → NonVoid χ t → DeclP Σ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
     ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ []
     assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ []
     assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
@@ -180,5 +178,5 @@ module FunDef (Σ : SymbolTab) (χ : TypeTab) where
   fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
 
   data ValidFun : TopDef → Set where
-    validFun : ∀ {t id as ss Δ} → WFBlock (fromArgs as) → (ss' : _⊢_⇒⇒_ t (fromArgs as ∷ []) ss Δ)
+    validFun : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : _⊢_⇒⇒_ t (fromArgs as ∷ []) ss Δ)
                                 → Returns ss' →  ValidFun (fnDef t id as (block ss))

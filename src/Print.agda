@@ -63,13 +63,15 @@ pLabel (ident x) = "label %" ++ x
 -- Helper functions for pInst
 private
   pArith : FirstClass T → ArithOp → String
-  pArith (lint n) = λ { + →  "add"; - →  "sub"; mul →  "mul"; / → "sdiv"}
-  pArith float    = λ { + → "fadd"; - → "fsub"; mul → "fmul"; / → "fdiv"}
+  pArith (lint n)  = λ { + →  "add"; - →  "sub"; mul →  "mul"; / → "sdiv"}
+  pArith (ptrFC t) = λ { + →  "add"; - →  "sub"; mul →  "mul"; / → "sdiv"} -- Unreachable
+  pArith float     = λ { + → "fadd"; - → "fsub"; mul → "fmul"; / → "fdiv"}
 
   open RelOp
   pCmp : FirstClass T → RelOp → String
-  pCmp (lint _)  = ("icmp " ++_) ∘ λ { lTH → "slt"; lE → "sle"; gTH → "sgt"; gE → "sge"; eQU →  "eq"; nE →  "ne"}
-  pCmp float     = ("fcmp " ++_) ∘ λ { lTH → "ult"; lE → "ule"; gTH → "ugt"; gE → "uge"; eQU → "ueq"; nE → "une"}
+  pCmp (lint  _)  = ("icmp " ++_) ∘ λ { lTH → "slt"; lE → "sle"; gTH → "sgt"; gE → "sge"; eQU →  "eq"; nE →  "ne"}
+  pCmp (ptrFC _)  = ("icmp " ++_) ∘ λ { lTH → "slt"; lE → "sle"; gTH → "sgt"; gE → "sge"; eQU →  "eq"; nE →  "ne"}
+  pCmp float      = ("fcmp " ++_) ∘ λ { lTH → "ult"; lE → "ule"; gTH → "ugt"; gE → "uge"; eQU → "ueq"; nE → "une"}
 
   pCall : All Operand Ts → String
   pCall (_∷_ {t} y (x ∷ xs)) = pType t ++ " " ++ pOperand y ++ ", " ++ pCall (x ∷ xs)

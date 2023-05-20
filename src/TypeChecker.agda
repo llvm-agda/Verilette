@@ -36,7 +36,7 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
 
 mergeΧχ : List (Id × Id) → List (Id × List (Id × Type)) → TCM TypeTab
 mergeΧχ [] χ            = pure []
-mergeΧχ ((c , n) ∷ Χ) χ = do inList fs p ← lookupTCM n χ
+mergeΧχ ((c , n) ∷ Χ) χ = do inList fs p ← lookupTCM c χ
                              rest ← mergeΧχ Χ χ
                              pure ((n , c , fs) ∷ rest)
 

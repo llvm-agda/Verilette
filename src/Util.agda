@@ -53,7 +53,7 @@ lookupTCM x xs with lookup x xs
 ... | nothing = error ("lookup failed: " ++ showId x ++ " was not found")
 
 
-lookupConstructor : (x : Id) → (xs : TypeTab) → TCM (InTypeTab xs x)
+lookupConstructor : (c : Id) → (xs : TypeTab) → TCM (InTypeTab xs c)
 lookupConstructor x [] = error (("Struct " ++ showId x ++ " has no type"))
 lookupConstructor x ((n , c , fs) ∷ xss) with x eqId c
 ... | inj₁ z = do inList n' fs' p ← lookupConstructor x xss
@@ -86,7 +86,7 @@ ifEq bool       = pure EqBool
 ifEq int        = pure EqInt
 ifEq doub       = pure EqDouble
 ifEq (array _)  = error "Array is not Eq type"
-ifEq (structT _)  = error "Struct is not Eq type"
+ifEq (structT n)  = pure EqStruct
 ifEq void       = error "Void is not Eq type"
 ifEq (fun T ts) = error "Function is not Eq type"
 
@@ -108,23 +108,25 @@ ifNum void       = error "Void is not numeric"
 ifNum (structT _)  = error "Struct is not Num type"
 ifNum (fun T ts) = error "Function is not Num type"
 
-ifNonVoid : (T : Type) → TCM (NonVoid T)
-ifNonVoid bool       = pure NonVoidBool
-ifNonVoid int        = pure NonVoidInt
-ifNonVoid doub       = pure NonVoidDoub
-ifNonVoid (array t)  = NonVoidArray <$> ifNonVoid t
-ifNonVoid (structT _) = pure NonVoidStruct
-ifNonVoid void       = error "Void is not-nonVoid"
-ifNonVoid (fun T ts) = error "Function is not-nonVoid"
+ifNonVoid : (χ : TypeTab) → (T : Type) → TCM (NonVoid χ T)
+ifNonVoid χ bool       = pure NonVoidBool
+ifNonVoid χ int        = pure NonVoidInt
+ifNonVoid χ doub       = pure NonVoidDoub
+ifNonVoid χ (array t)  = NonVoidArray <$> ifNonVoid χ t
+ifNonVoid χ (structT n) = do inList _ p ← lookupTCM n χ
+                             pure (NonVoidStruct p)
+ifNonVoid χ void       = error "Void is not-nonVoid"
+ifNonVoid χ (fun T ts) = error "Function is not-nonVoid"
 
-ifBasic : (T : Type) → TCM (Basic T)
-ifBasic bool       = pure BasicBool
-ifBasic int        = pure BasicInt
-ifBasic doub       = pure BasicDoub
-ifBasic (array _)  = error "Array is not a Basic Type"
-ifBasic (structT _)  = error "Struct is not a Basic Type"
-ifBasic void       = error "Void is not a Basic Type"
-ifBasic (fun T ts) = error "Function is not a Basic Type"
+ifBasic : (χ : TypeTab) → (T : Type) → TCM (Basic χ T)
+ifBasic χ bool       = pure BasicBool
+ifBasic χ int        = pure BasicInt
+ifBasic χ doub       = pure BasicDoub
+ifBasic χ (array _)  = error "Array is not a Basic Type"
+ifBasic χ (structT n)  = do inList _ p ← lookupTCM n χ
+                            pure (BasicStruct p)
+ifBasic χ void       = error "Void is not a Basic Type"
+ifBasic χ (fun T ts) = error "Function is not a Basic Type"
 
 
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎

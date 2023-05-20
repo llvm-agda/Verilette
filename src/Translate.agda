@@ -30,7 +30,7 @@ open Valid Σ χ
 
 -- Every well typed expression can be transformed into our representation
 toExp : _⊢_∶_ χ Γ e T → Exp χ Γ T
-toExp (eVar id x p) = EId id x
+toExp (eVar id x)   = EId id x
 toExp (eLitInt x)   = EValue x
 toExp (eLitDoub x)  = EValue x
 toExp eLitTrue      = EValue Bool.true
@@ -67,15 +67,15 @@ toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 
-toZero : NonVoid T → Exp χ Γ T
+toZero : NonVoid χ T → Exp χ Γ T
 toZero NonVoidInt  = EValue Int.0ℤ
 toZero NonVoidDoub = EValue 0.0
 toZero NonVoidBool = EValue Bool.false
 toZero (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
-toZero NonVoidStruct = EStruct
+toZero (NonVoidStruct _) = EStruct
 
 
-toDecls : ∀ {is t} → NonVoid t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
+toDecls : ∀ {is t} → NonVoid χ t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T ((Δ' ++r Δ) ∷ Γ) → Stms T (Δ ∷ Γ)
 toDecls n [] ss = ss
 toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ _ (toZero n) px) SCons toDecls n is ss
 toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ _ (toExp e')          px) SCons toDecls n is ss

@@ -48,6 +48,7 @@ toSet _ = ⊥
 data FirstClass : Type → Set where
   lint : ∀ n → FirstClass (lint n)
   float : FirstClass float
+  ptrFC : ∀ t → FirstClass (t *)
 
 pattern i1  = lint 0
 pattern i8  = lint 7

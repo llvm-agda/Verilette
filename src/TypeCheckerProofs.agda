@@ -47,7 +47,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   inferProof (eLitDoub x) = refl
   inferProof eLitTrue = refl
   inferProof eLitFalse = refl
-  inferProof (eVar id x n) = {!!}
+  inferProof (eVar id x) = {!!}
   inferProof (eApp id x xs) = {!!}
   inferProof (neg Num.NumInt eT)    rewrite inferProof eT = refl
   inferProof (neg Num.NumDouble eT) rewrite inferProof eT = refl
@@ -79,6 +79,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   inferProof (eEq nE Eq.EqInt        eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eEq nE Eq.EqBool       eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eEq nE Eq.EqDouble     eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
+  inferProof (eEq x x₁ x₂ x₃) = {!!}
   inferProof (eAnd eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eOr  eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (ePrintString s) = refl
@@ -104,7 +105,7 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
   open import Translate Σ χ using (toExp; toStms; _SCons'_; toDecls)
 
 
-  returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid t)
+  returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid χ t)
                {ss : Stms T ((Δ' ++r Δ) ∷ Γ)}
                (is' : DeclP Σ χ t is (Δ ∷ Γ) Δ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
