@@ -87,7 +87,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     eLength : ∀ {e t}   →  Γ ⊢ e ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
     eStruct : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNew (structT c) [] ∶ structT n
-    eNull   : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNull n ∶ structT n
+    eNull   : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNull (eVar n) ∶ structT n
     eDeRef  : ∀ {n f c fs t} →  Γ ⊢ e ∶ structT n →  (n , c , fs) ∈ χ →  (f , t) ∈ fs →   Γ ⊢ eDeRef e f ∶ t
 
     eOrd : ∀ {op} → OrdOp op → Ord T → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eRel x op y ∶ bool

@@ -12,18 +12,18 @@ import Data.Float as Doub
 
 
 open import Javalette.AST using (Ident; Type; Stmt); open Type
-open import TypedSyntax  as TS using (Block; Ctx; SymbolTab
+open import TypedSyntax  as TS using (Block; Ctx; SymbolTab; TypeTab
                                              ; _∈'_; _∈_; _∉_
                                              ; T; Γ; Δ; Δ'
                                              ; Num; Eq; Ord; Return; toSet)
 open import WellTyped
-open import CheckExp
+open import TypeCheck.CheckExp
 open import Translate
 
-module Semantics (Σ : SymbolTab) where
+module Semantics (Σ : SymbolTab) (χ : TypeTab) where
 
 
-open Expression Σ
+open Expression Σ χ
 
 -- Source operational semantics: well typed expr yields value with side effect
 -- Potentially we should split it into two semantics to better support void
@@ -68,7 +68,7 @@ module SourceExp {Γ : Ctx} where
     eLitDoub  : ∀ {x} → eLitDoub x ⇓ []
     eLitTrue  : eLitTrue  ⇓ []
     eLitFalse : eLitFalse ⇓ []
-    eVar : ∀ {t id} {n : TS.NonVoid t} {p : (id , t) ∈' Γ} → eVar id p n ⇓ []
+    eVar : ∀ {t id} {p : (id , t) ∈' Γ} → eVar id p ⇓ []
 
     negInt  : ∀ {x p} → {eT : Γ ⊢ e ∶ int}  → eT ⇓ x → neg p eT ⇓ x
     negDoub : ∀ {x p} → {eT : Γ ⊢ e ∶ doub} → eT ⇓ x → neg p eT ⇓ x
@@ -89,7 +89,7 @@ module SourceExp {Γ : Ctx} where
 
 
 module TargetExp {Γ : Ctx} where
-  open TS.Typed Σ
+  open TS.Typed Σ χ
 
   data _↓_ : (Exp Γ T) → (toSet T) → Set where
     EValue : ∀ {t} → (x : toSet t) → EValue x ↓ x
@@ -121,14 +121,14 @@ module TargetExp {Γ : Ctx} where
 module SemanticsExp (Γ : Ctx) where
   open SourceExp {Γ}
   open TargetExp {Γ} renaming (_↓_ to _↓t_; _⇓_ to _⇓t_)
-  open TS.Typed Σ
+  open TS.Typed Σ χ
 
   private
     variable
       r r' : toSet T
       s s' : List String
 
-  proof : {e : Γ ⊢ e' ∶ T} → e ↓ r  →  toExp Σ e ↓t r'  →  (r ≡ r')
+  proof : {e : Γ ⊢ e' ∶ T} → e ↓ r  →  toExp Σ χ e ↓t r'  →  (r ≡ r')
   proof (eLitInt x) (EValue .x) = refl
   proof (eLitDoub x) (EValue .x) = refl
   proof eLitTrue (EValue .Bool.true) = refl
@@ -140,7 +140,7 @@ module SemanticsExp (Γ : Ctx) where
 
 
   -- Side Effect
-  proofSE : {e : Γ ⊢ e' ∶ T} → e ⇓ s  →  toExp Σ e ⇓t s'  →  (s ≡ s')
+  proofSE : {e : Γ ⊢ e' ∶ T} → e ⇓ s  →  toExp Σ χ e ⇓t s'  →  (s ≡ s')
   proofSE eLitInt   EValue = refl
   proofSE eLitDoub  EValue = refl
   proofSE eLitTrue  EValue = refl
@@ -168,7 +168,7 @@ module SemanticsExp (Γ : Ctx) where
 
 
 module SourceStms (T : Type) where
-  open Statements Σ T
+  open Statements Σ χ T
   open SourceExp
   open Bool using (true; false)
 
@@ -185,7 +185,7 @@ module SourceStms (T : Type) where
   data _⤋_ {Γ} where
     empty : empty ⤋ []
     bStmt : ∀ {v} → {ss : ([] ∷ Γ) ⊢ ss ⇒⇒ Δ} → ss ⇊ v →  bStmt ss ⤋ v
-    decl : ∀ {t is} → {n : TS.NonVoid t} → {p : DeclP Σ t is Γ Δ} →  decl t n p ⤋ []
+    decl : ∀ {t is} → {n : TS.NonVoid χ t} → {p : DeclP Σ χ t is Γ Δ} →  decl t n p ⤋ []
     ass  : ∀ {t id v} → {p : (id , t  ) ∈' Γ} → {e' : Γ ⊢ e ∶ t  } → e' ⇓ v  → ass  id p e' ⤋ v
     incr : ∀ {  id  } → {p : (id , int) ∈' Γ} → {e' : Γ ⊢ e ∶ int}           → incr id p ⤋ []
     decr : ∀ {  id  } → {p : (id , int) ∈' Γ} → {e' : Γ ⊢ e ∶ int}           → decr id p ⤋ []
@@ -205,8 +205,8 @@ module SourceStms (T : Type) where
 
 module TargetStms (T : Type) where
   open TargetExp
-  open TS.Typed Σ
-  open TS.Valid Σ T
+  open TS.Typed Σ χ
+  open TS.Valid Σ χ T
   open Bool using (true; false)
 
   data _⤋_ : (Stm  Γ) → List String → Set

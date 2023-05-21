@@ -52,8 +52,9 @@ module CheckExp (Γ : Ctx) where
   infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
   infer (eLitFalse ) = pure (eLitFalse ::: bool)
   infer (eString x)  = error "Encountered string outside of printString"
-  infer (eNull x)    = do inList t p ← lookupTCM x χ
-                          pure (eNull p ::: structT x)
+  infer (eNull (eVar x)) = do inList t p ← lookupTCM x χ
+                              pure (eNull p ::: structT x)
+  infer (eNull _) = error "Error; eNull should take a struct type as argument"
   infer (eIndex e i) = do i' ::: int ← infer i
                             where i' ::: _ → error "Tried to index with non int expression"
                           e' ::: array t ← infer e

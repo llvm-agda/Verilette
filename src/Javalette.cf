@@ -92,7 +92,7 @@ ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
 
-ENull.     Expr6 ::= "(" Ident ")" "null" ;
+ENull.     Expr6 ::= "(" Expr ")" "null" ;
 
 EIndex.    Expr6 ::= Expr6 "[" Expr "]" ;
 
