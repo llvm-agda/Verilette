@@ -12,8 +12,8 @@ open import Data.List.Relation.Unary.All using (All; reduce); open All
 open import Agda.Builtin.Bool using (true; false)
 
 
-open import TypeCheckerMonad
-open import Util
+open import TypeCheck.Monad
+open import TypeCheck.Util
 open import Javalette.AST
 
 open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
@@ -23,7 +23,7 @@ open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
 open import WellTyped
 
 
-module CheckExp (Σ : SymbolTab) (χ : TypeTab) where
+module TypeCheck.CheckExp (Σ : SymbolTab) (χ : TypeTab) where
 
 open Expression Σ χ
 

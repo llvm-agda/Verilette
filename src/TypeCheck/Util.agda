@@ -1,6 +1,6 @@
 
 
-module Util where
+module TypeCheck.Util where
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Data.List.Relation.Unary.All using (All); open All
@@ -17,7 +17,7 @@ open import Data.Maybe    public using (Maybe; just; nothing)
 
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
-open import TypeCheckerMonad
+open import TypeCheck.Monad
 open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
 open import TypedSyntax
 

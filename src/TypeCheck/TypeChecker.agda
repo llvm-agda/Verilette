@@ -1,4 +1,4 @@
-module TypeChecker where
+module TypeCheck.TypeChecker where
 
 open import Agda.Builtin.Bool
 open import Agda.Primitive
@@ -22,8 +22,8 @@ open import Function using (case_of_)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
 open import TypedSyntax renaming (Program to TypedProgram)
-open import TypeCheckerMonad
-open import Util
+open import TypeCheck.Monad
+open import TypeCheck.Util
 
 
 builtin : SymbolTab
@@ -75,11 +75,11 @@ checkFun Σ χ t ts (fnDef t' x as (block b)) = do
                  ; voidparam = pparam
                  ; unique    = unique
                  ; return    = returnProof returns })
-  where import CheckExp Σ χ as CH
+  where import TypeCheck.CheckExp Σ χ as CH
         open CH.CheckStatements t
         open import Translate Σ χ using (toStms)
 
-        import TypeCheckerProofs as TCP
+        import TypeCheck.Proofs as TCP
         open TCP.ReturnsProof  Σ χ using (returnProof)
 
 checkFuns : (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)

@@ -26,7 +26,7 @@ open import Code hiding (TypeTab)
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import TypedSyntax hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
 
-module Compile where
+module Compile.Compile where
 
 open Typed
 open Valid

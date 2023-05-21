@@ -1,5 +1,5 @@
 
-module TypeCheckerMonad where
+module TypeCheck.Monad where
 
 open import Agda.Primitive using (lzero)
 open import Data.String using (String; _≟_; _++_ )

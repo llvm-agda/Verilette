@@ -17,13 +17,12 @@ open import Function using (_$_; _∘_)
 
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import Code
-open import Compile using (llvmType)
 open import TypedSyntax using (ArithOp; _∈_)
 open ArithOp renaming (* to mul)
 
 
 -- printing llvm code
-module Print where
+module Compile.Print where
 
 pType :      Type → String
 pTypeList : List Type → String

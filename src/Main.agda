@@ -4,10 +4,10 @@ open import Javalette.IOLib
 open import Javalette.AST using (printProg)
 open import Javalette.Parser using (Err; parseProg)
 open import Data.String
-open import TypeChecker
-open import TypeCheckerMonad using (TCM)
-open import Compile using (compileProgram)
-open import Print   using (pProgram)
+open import TypeCheck.TypeChecker
+open import TypeCheck.Monad using (TCM)
+open import Compile.Compile using (compileProgram)
+open import Compile.Print   using (pProgram)
 open import Data.Sum.Base
 open import Agda.Builtin.IO
 open import Agda.Builtin.String

@@ -9,18 +9,18 @@ open import Data.List using (List; _∷_; []; _++_) renaming (_ʳ++_ to _++r_)
 open import Data.List.Properties using (ʳ++-defn)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
-open import Util
+open import TypeCheck.Util
 open import TypedSyntax as TS using (SymbolTab; TypeTab; Ctx; Num; Ord; Eq
                                     ; Γ; Δ; Δ'; Δ'')
 open import WellTyped
-open import CheckExp
+open import TypeCheck.CheckExp
 
 
-module TypeCheckerProofs where
+module TypeCheck.Proofs where
 
 module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
 
-  open CheckExp.CheckExp Σ χ Γ
+  open TypeCheck.CheckExp.CheckExp Σ χ Γ
   open WellTyped.Expression Σ χ
 
 
