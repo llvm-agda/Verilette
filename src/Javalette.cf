@@ -108,7 +108,7 @@ Not.       Expr5 ::= "!" Expr6 ;
 
 ENew.      Expr5 ::= "new" Type [ArrDecl] ;
 
-EAttrib.   Expr5  ::= Expr5  "." Ident ;
+EAttrib.   Expr5 ::= Expr5  "." Ident ;
 
 EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
 
@@ -118,7 +118,7 @@ ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
 
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
-EOr.       Expr ::= Expr1 "||" Expr ;
+EOr.       Expr  ::= Expr1 "||" Expr ;
 
 ArraySize. ArrDecl ::= "[" Expr "]" ;
 separator ArrDecl "" ;

@@ -168,9 +168,9 @@ module Return {Σ : SymbolTab} {χ : TypeTab} where
                      → Returns' s1' → Returns' s2' → Returns' (condElse eB s1' s2')
 
 
-module FunDef (Σ : SymbolTab) (χ : TypeTab) where
+module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
-  open Statements Σ χ
+  open Statements Σ χ T
   open Return {Σ} {χ}
 
   fromArgs : List Arg → Block
@@ -178,5 +178,8 @@ module FunDef (Σ : SymbolTab) (χ : TypeTab) where
   fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
 
   data ValidFun : TopDef → Set where
-    validFun : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : _⊢_⇒⇒_ t (fromArgs as ∷ []) ss Δ)
-                                → Returns ss' →  ValidFun (fnDef t id as (block ss))
+    fnDef : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : (fromArgs as ∷ []) ⊢ ss ⇒⇒ Δ)
+                             → Returns ss' →  ValidFun (fnDef t id as (block ss))
+
+    typeDef : ∀ {n c : Ident} → ValidFun (typeDef n c)
+    -- struct  : ∀ {c fs} → WFBlock χ (fromArgs fs) → TopDef (struct c fs)

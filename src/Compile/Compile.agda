@@ -39,8 +39,9 @@ llvmType OldType.doub = float
 llvmType OldType.bool = i1
 llvmType OldType.void = void
 llvmType (OldType.structT x) = named x *
-llvmType (OldType.array t)  = struct (i32 ∷ array 0 (llvmType t) ∷ []) *
+llvmType (OldType.array t)  = struct (i32 ∷ [ 0 × llvmType t ] ∷ []) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
+
 
 null : ∀ {t} → Operand (t *)
 null = const 0
@@ -204,21 +205,21 @@ fromEq (EqStruct {n}) = ptrFC (named n)
 calloc : (n : Operand i32) → Operand i32 → Instruction (i8 *)
 calloc n t = call (global (ident "calloc")) (n ∷ t ∷ [])
 
-callocArray : (t : Type) → (n : Operand i32) → CM Γ (Operand (struct (i32 ∷ array 0 t ∷ []) *))
+callocArray : (t : Type) → (n : Operand i32) → CM Γ (Operand (struct (i32 ∷ [ 0 × t ] ∷ []) *))
 callocArray t n = do sucN ← emitTmp (arith i32 ArithOp.+ n (const (pos 1)))
-                     size' ← emitTmp (getElemPtr {struct (i32 ∷ array 0 t ∷ [])} (const 0) 0
+                     size' ← emitTmp (getElemPtr {struct (i32 ∷ [ 0 × t ] ∷ [])} null 0
                                                                 (struct (there (here refl)) ∷ array sucN ∷ []))
                      size ← emitTmp (ptrToInt size')
 
-                     p ← emitTmp (calloc (const (pos 1)) size)
-                     pArr ← emitTmp (bitCast p ((struct (i32 ∷ array 0 t ∷ [])) *))
+                     i8*  ← emitTmp (calloc (const (pos 1)) size)
+                     arr* ← emitTmp (bitCast i8* (struct (i32 ∷ [ 0 × t ] ∷ []) *))
 
-                     len  ← emitTmp (getElemPtr pArr 0 ((struct (here refl)) ∷ []))
+                     len  ← emitTmp (getElemPtr arr* 0 (struct (here refl) ∷ []))
                      emit (store n len)
-                     pure pArr
+                     pure arr*
 
 
-forArray : ∀ {t} → Operand (struct (i32 ∷ array 0 t ∷ []) *) → (Operand (t *) → CM Γ Bool) → CM Γ Bool
+forArray : ∀ {t} → Operand (struct (i32 ∷ [ 0 × t ] ∷ []) *) → (Operand (t *) → CM Γ Bool) → CM Γ Bool
 forArray arr f = do lenPtr ← emitTmp (getElemPtr arr 0 (struct (here refl) ∷ [])) -- index 0
                     len ← emitTmp (load lenPtr)
 
@@ -310,7 +311,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
                                 let str = fromList x ++ "\00"
                                 let id = ident ("str" ++ showℕ c)
-                                let globalOper = global {array (length str) i8 *} id
+                                let globalOper = global {[ length str × i8 ] *} id
                                 modify λ s → record s {globalS = gS (suc c) ((id , str) ∷ strs)}
 
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))

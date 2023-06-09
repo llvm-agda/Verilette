@@ -29,7 +29,7 @@ data Type : Set where
   void : Type
   _* : Type → Type
   struct : List Type → Type
-  array : ℕ → Type → Type
+  [_×_] : ℕ → Type → Type
   named : Id → Type
   fun : Type → List Type → Type
 
@@ -71,7 +71,7 @@ data Operand (T : Type) : Set where
 
 data GetElem' : Type → Type → Set where
   struct : ∀ {t ts} → t ∈ ts → GetElem' (struct ts) t
-  array  : ∀ {t n}  → Operand i32 → GetElem' (array n t) t
+  array  : ∀ {t n}  → Operand i32 → GetElem' [ n × t ] t
 
 data GetElem : Type → Type → Set where
   []  : ∀ {t} → GetElem t t

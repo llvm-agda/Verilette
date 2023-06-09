@@ -32,6 +32,9 @@ module CheckExp (Γ : Ctx) where
 
   pattern _:::_ e t = t , e
 
+  -- If an expression typechecks it is well typed (in our type semantics) -- Soundness
+  checkExp : (t : Type) → (e : Expr) → TCM (Γ ⊢ e ∶ t)
+
   infer     : (e  :      Expr) → TCM (∃ (Γ ⊢ e ∶_))
   inferList : (es : List Expr) → TCM (∃ (AllPair (Γ ⊢_∶_) es) )
   inferList [] = pure ([] ::: [])
@@ -49,14 +52,13 @@ module CheckExp (Γ : Ctx) where
                        pure (eVar x p ::: t)
   infer (eLitInt x ) = pure (eLitInt  x ::: int)
   infer (eLitDoub x) = pure (eLitDoub x ::: doub)
-  infer (eLitTrue  ) = pure (eLitTrue  ::: bool)
-  infer (eLitFalse ) = pure (eLitFalse ::: bool)
+  infer (eLitTrue  ) = pure (eLitTrue   ::: bool)
+  infer (eLitFalse ) = pure (eLitFalse  ::: bool)
   infer (eString x)  = error "Encountered string outside of printString"
   infer (eNull (eVar x)) = do inList t p ← lookupTCM x χ
                               pure (eNull p ::: structT x)
   infer (eNull _) = error "Error; eNull should take a struct type as argument"
-  infer (eIndex e i) = do i' ::: int ← infer i
-                            where i' ::: _ → error "Tried to index with non int expression"
+  infer (eIndex e i) = do i' ← checkExp int i
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
@@ -67,12 +69,10 @@ module CheckExp (Γ : Ctx) where
                           pure (eArray new' ::: t')
         where inferNew : (ns : List ArrDecl) → TCM (∃ (WFNew Γ t ns))
               inferNew [] = error "Tried to make a new array without size"
-              inferNew (arraySize e ∷ []) = do e' ::: int ← infer e
-                                                  where e' ::: _ → error "Tried to create a new array with non-int expression"
+              inferNew (arraySize e ∷ []) = do e' ← checkExp int e
                                                b ← ifBasic χ t
                                                pure (nType e' b ::: array t)
-              inferNew (arraySize e ∷ ns) = do e' ::: int ← infer e
-                                                  where e' ::: _ → error "Tried to create a new array with non-int expression"
+              inferNew (arraySize e ∷ ns) = do e' ← checkExp int e
                                                ns' ::: t' ← inferNew ns
                                                pure (nArray e' ns' ::: array t')
   infer (eAttrib e (ident "length")) = do e' ::: array t  ← infer e
@@ -87,8 +87,7 @@ module CheckExp (Γ : Ctx) where
   infer (neg e) = do e' ::: t ← infer e
                      p ← ifNum t
                      pure (neg p e' ::: t)
-  infer (not e) = do e' ::: bool ← infer e
-                        where _ ::: t → error "non-bool expression found in not"
+  infer (not e) = do e' ← checkExp bool e
                      pure (not e' ::: bool)
   infer (eMul x op y) with inferPair x y
   ...   | inj₁ s = error s
@@ -121,8 +120,6 @@ module CheckExp (Γ : Ctx) where
                          refl ← eqLists ts ts'
                          pure (eApp x p es' ::: t)
 
-  -- If an expression typechecks it is well typed (in our type semantics) -- Soundness
-  checkExp : (t : Type) → (e : Expr) → TCM (Γ ⊢ e ∶ t)
   checkExp t e = do e' ::: t' ← infer e
                     refl ← t =?= t'
                     pure e'
