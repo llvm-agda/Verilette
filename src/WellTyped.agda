@@ -16,19 +16,29 @@ open import Data.Empty using (⊥)
 
 open import Function using (_$_; _∘_; case_of_; case_return_of_)
 
-open import Javalette.AST
-open import TypedSyntax as TS using (Block; Ctx; SymbolTab; TypeTab;
+open import Javalette.AST renaming (Ident to Id)
+open import TypedSyntax as TS using (SymbolTab; TypeTab;
                                     _∈'_; _∈_; _∉_;
                                     Num; Eq; Ord; NonVoid; Basic;
-                                    Γ; Δ; Δ'; T; Ts)
+                                    T; Ts)
 open NonVoid
 
 
 module WellTyped where
 
+
+Block : Set
+Block = List (Id × Type)
+
+Ctx : Set
+Ctx = List Block
+
+
 variable
   e e' x y : Expr
   es : List Expr
+  Δ Δ' : Block
+  Γ : Ctx
 
 
 data AllPair {A B : Set} (P : A → B → Set) : List A → List B → Set where
@@ -48,9 +58,9 @@ data EqOp : RelOp → Set where
 
 
 -- Well formed block
-data WFBlock (χ : TypeTab) : (Δ : Block) → Set where
-  []  : WFBlock χ []
-  _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid χ t → WFBlock χ Δ → WFBlock χ ((id , t) ∷ Δ)
+-- data WFBlock (χ : TypeTab) : (Δ : Block) → Set where
+--   []  : WFBlock χ []
+--   _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid χ t → WFBlock χ Δ → WFBlock χ ((id , t) ∷ Δ)
 
 
 module Expression (Σ : SymbolTab) (χ : TypeTab) where
@@ -111,7 +121,7 @@ ItemP _ _ _ (Δ ∷ Γ) (noInit id) =  id ∉ Δ
 ItemP Σ χ t (Δ ∷ Γ) (init id e) = (id ∉ Δ) × ((Δ ∷ Γ) ⊢ e ∶ t)
   where open Expression Σ  χ
 
-itemId : Item → Ident
+itemId : Item → Id
 itemId (noInit x) = x
 itemId (init x e) = x
 
@@ -177,9 +187,9 @@ module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
   fromArgs [] = []
   fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
 
-  data ValidFun : TopDef → Set where
-    fnDef : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : (fromArgs as ∷ []) ⊢ ss ⇒⇒ Δ)
-                             → Returns ss' →  ValidFun (fnDef t id as (block ss))
-
-    typeDef : ∀ {n c : Ident} → ValidFun (typeDef n c)
-    -- struct  : ∀ {c fs} → WFBlock χ (fromArgs fs) → TopDef (struct c fs)
+--  data ValidFun : TopDef → Set where
+--    fnDef : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : (fromArgs as ∷ []) ⊢ ss ⇒⇒ Δ)
+--                             → Returns ss' →  ValidFun (fnDef t id as (block ss))
+--
+--    typeDef : ∀ {n c : Ident} → ValidFun (typeDef n c)
+--    -- struct  : ∀ {c fs} → WFBlock χ (fromArgs fs) → TopDef (struct c fs)

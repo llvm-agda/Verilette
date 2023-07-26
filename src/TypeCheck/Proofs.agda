@@ -10,8 +10,8 @@ open import Data.List.Properties using (ʳ++-defn)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import TypeCheck.Util
-open import TypedSyntax as TS using (SymbolTab; TypeTab; Ctx; Num; Ord; Eq
-                                    ; Γ; Δ; Δ'; Δ'')
+open import TypedSyntax as TS using (SymbolTab; TypeTab; Num; Ord; Eq)
+
 open import WellTyped
 open import TypeCheck.CheckExp
 
@@ -102,11 +102,11 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
 
   open Javalette.AST.Item
 
-  open import Translate Σ χ using (toExp; toStms; _SCons'_; toDecls)
+  open import Translate Σ χ using (dropAllId; toExp; toStms; _SCons'_; toDecls)
 
 
   returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid χ t)
-               {ss : Stms T ((Δ' ++r Δ) ∷ Γ)}
+               {ss : Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ))}
                (is' : DeclP Σ χ t is (Δ ∷ Γ) Δ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
   returnDecl n [] p = p

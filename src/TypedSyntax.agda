@@ -17,6 +17,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
 open import Javalette.AST using (Type; String) renaming (Ident to Id)
 open Type
 
+
 variable
   A B : Set
   x y : A
@@ -35,10 +36,13 @@ TypeTab = List (Id × (Id × List (Id × Type)))
 
 
 Block : Set
-Block = List (Id × Type)
+Block = List Type
 
 Ctx : Set
 Ctx = List Block
+
+Params : ∀ {A} → List A → Set
+Params = All (λ _ → Id)
 
 TList : (A → Set) → List A → Set
 TList = All
@@ -135,7 +139,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
 
   data Exp Γ where
     EValue  : toSet T  → Exp Γ T
-    EId     : (id : Id) → (id , T) ∈' Γ → Exp Γ T
+    EId     : T ∈' Γ → Exp Γ T
     EAPP    : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
     EArith  : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
     EMod    : Exp Γ int → Exp Γ int → Exp Γ int
@@ -159,25 +163,25 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
   mutual
     data Stm : (Γ : Ctx) → Set  where
       SExp    : Exp Γ void → Stm Γ
-      SDecl   : (t : Type) → (id : Id) → Exp (Δ ∷ Γ) t → id ∉ Δ → Stm (Δ ∷ Γ)
-      SAss    : (id : Id) → (e : Exp Γ t) → (id , t) ∈' Γ → Stm Γ
+      SDecl   : (t : Type) → Exp (Δ ∷ Γ) t → Stm (Δ ∷ Γ)
+      SAss    : (e : Exp Γ t) → t ∈' Γ → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
       SAssPtr : ∀ {fs f n c} → Exp Γ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
-      SFor    : (id : Id) → Exp Γ (array t)  → Stms ([ id , t ] ∷ Γ) → Stm Γ
+      SFor    : Exp Γ (array t)  → Stms ([ t ] ∷ Γ) → Stm Γ
       SBlock  : Stms ([] ∷ Γ) → Stm Γ
       SIfElse : Exp Γ bool → Stms ([] ∷ Γ) → Stms ([] ∷ Γ) → Stm Γ
       SReturn : Return (Exp Γ) T → Stm Γ
 
     nextCtx : {Γ : Ctx} → Stm Γ → Ctx
-    nextCtx {.(_∷_) Δ Γ} (SDecl t id x _) = ((id , t) ∷ Δ) ∷ Γ
+    nextCtx {.(_∷_) Δ Γ} (SDecl t x) = (t ∷ Δ) ∷ Γ
     nextCtx {Γ} (SAssPtr e p q x) = Γ
     nextCtx {Γ} (SExp x)          = Γ
-    nextCtx {Γ} (SAss id e x)     = Γ
+    nextCtx {Γ} (SAss e x)        = Γ
     nextCtx {Γ} (SAssIdx a i e)   = Γ
     nextCtx {Γ} (SWhile x x₁)     = Γ
-    nextCtx {Γ} (SFor id e ss)    = Γ
+    nextCtx {Γ} (SFor e ss)       = Γ
     nextCtx {Γ} (SBlock x)        = Γ
     nextCtx {Γ} (SIfElse _ _ _)   = Γ
     nextCtx {Γ} (SReturn x)       = Γ
@@ -205,14 +209,11 @@ data returnStms where
 
 record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where
   field
-    idents : List Id
-
-  params = zip idents Ts
+    params : Params Ts
 
   field
-    body      : Stms Σ χ T (reverse params ∷ [])
+    body      : Stms Σ χ T (Ts ∷ [])
     voidparam : All (_≢ void) Ts
-    unique    : Unique params
     return    : returnStms body
 
 

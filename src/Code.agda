@@ -108,9 +108,7 @@ data Code : Set where
 
 record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
-    idents : List Id
-
-  params = zip idents Ts
+    params : All (λ _ → Id) Ts
 
   field
     body      : Code

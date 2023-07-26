@@ -4,7 +4,7 @@ open import Data.List using (List; _∷_; []; map)
 
 open import Data.Product using (_×_; _,_)
 open import Data.List.Relation.Unary.Any using (Any); open Any
-open import Data.List.Relation.Unary.All using (All); open All
+open import Data.List.Relation.Unary.All using (All; reduce); open All
 
 open import Data.Nat using (ℕ; suc; zero)
 
@@ -124,7 +124,7 @@ pFun {T = T} (ident id) def =
      let header = unwords $ "define" ∷ pType T ∷ ("@" ++ id) ∷ pParams ∷ "{" ∷ []
      in intersperse "\n" $ header ∷ pCode body ∷ "}" ∷ []
   where open FunDef def
-        pParams = "(" ++ intersperse ", " (map (λ {(ident i , t) → pType t ++ " %" ++ i}) params) ++ ")"
+        pParams = "(" ++ intersperse ", " (reduce (λ {t} → λ {(ident i) → pType t ++ " %" ++ i}) params) ++ ")"
 
 pProgram : llvmProgram → String
 pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pTypes ∷ unlines pStrings ∷ pDefs hasDefs

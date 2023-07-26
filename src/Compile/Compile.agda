@@ -32,6 +32,9 @@ open Typed
 open Valid
 
 
+null : ∀ {t} → Operand (t *)
+null = const 0
+
 llvmType  : OldType → Type
 llvmTypes : List OldType → List Type
 llvmType OldType.int  = i32
@@ -42,12 +45,9 @@ llvmType (OldType.structT x) = named x *
 llvmType (OldType.array t)  = struct (i32 ∷ [ 0 × llvmType t ] ∷ []) *
 llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 
-
-null : ∀ {t} → Operand (t *)
-null = const 0
-
 llvmTypes [] = []
 llvmTypes (x ∷ xs) = llvmType x ∷ llvmTypes xs
+
 
 toSetProof : (t : OldType) → oldToSet t ≡ toSet (llvmType t)
 toSetProof OldType.int  = refl
@@ -59,7 +59,7 @@ toSetProof (OldType.array t) = refl
 toSetProof (OldType.fun t ts) = refl
 
 BlockList : Block → Set
-BlockList Δ = TList (λ (id , t) → Operand (llvmType t *)) Δ
+BlockList Δ = TList (λ t → Operand (llvmType t *)) Δ
 
 CtxList : Ctx → Set
 CtxList Γ = TList BlockList  Γ
@@ -94,10 +94,10 @@ addBlock (cMS g v t l c b) = cMS g v t l ([] ∷ c) b
 removeBlock : CMState (Δ ∷ Γ) → CMState Γ
 removeBlock (cMS g v t l (_ ∷ c) b) = cMS g v t l (c) b
 
-addVar : Operand (llvmType t *) → CMState (Δ  ∷ Γ) → CMState (((id , t) ∷ Δ) ∷ Γ)
+addVar : Operand (llvmType t *) → CMState (Δ  ∷ Γ) → CMState ((t ∷ Δ) ∷ Γ)
 addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b
 
-removeVar : ∀ {id t} → CMState (((id , t) ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
+removeVar : ∀ {t} → CMState ((t ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
 removeVar (cMS g v t l ((_ ∷ δ) ∷ γ) b) = cMS g v t l (δ  ∷ γ) b
 
 
@@ -119,15 +119,15 @@ toZero : {T : OldType} → Num T → toSet (llvmType T)
 toZero NumInt    = pos 0
 toZero NumDouble = 0.0
 
-lookupPtr' : BlockList Δ → (id , t) ∈ Δ → Operand (llvmType t *)
+lookupPtr' : BlockList Δ → t ∈ Δ → Operand (llvmType t *)
 lookupPtr' (x ∷ b) (here refl) = x
 lookupPtr' (_ ∷ b) (there x)   = lookupPtr' b x
 
-lookupPtr : CtxList Γ → (id , t) ∈' Γ → Operand (llvmType t *)
+lookupPtr : CtxList Γ → t ∈' Γ → Operand (llvmType t *)
 lookupPtr (x ∷ xs) (here p)  = lookupPtr' x p
 lookupPtr (x ∷ xs) (there s) = lookupPtr xs s
 
-getPtr : (id , t) ∈' Γ → CM Γ (Operand (llvmType t *))
+getPtr : t ∈' Γ → CM Γ (Operand (llvmType t *))
 getPtr p = do ctx ← ctxList <$> get
               pure (lookupPtr ctx p)
 
@@ -153,15 +153,15 @@ lookupNamed : ∀ {n c fs} {χ : TypeTab} → Operand (named n *) → (n , c , f
 lookupNamed x x₁ = emitTmp (bitCast x _)
 
 
-withNewVar : (id : Id) → Operand (llvmType t)  → CM (((id , t) ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
-withNewVar {t = t} _ x m = do v ← varC <$> get
-                              let p = local $ ident ("v" ++ showℕ v)
-                              modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
-                                                    ; varC  = suc (varC s)}
-                              s ← get
-                              let (s' , a) = runState m (addVar p s)
-                              put (removeVar s')
-                              pure a
+withNewVar : Operand (llvmType t)  → CM ((t ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
+withNewVar {t = t} x m = do v ← varC <$> get
+                            let p = local $ ident ("v" ++ showℕ v)
+                            modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
+                                                  ; varC  = suc (varC s)}
+                            s ← get
+                            let (s' , a) = runState m (addVar p s)
+                            put (removeVar s')
+                            pure a
 
 inNewBlock : CM ([] ∷ Γ) A → CM Γ A
 inNewBlock m = do x ← get
@@ -251,7 +251,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
 
   compileExp : (e : Exp Σ χ Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
-  compileExp (EId id x)        = emitTmp =<< load <$> getPtr x
+  compileExp (EId x)           = emitTmp =<< load <$> getPtr x
   compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
   compileExp (EMod     x    y) = emitTmp =<< srem                  <$> compileExp x <*> compileExp y
   compileExp (EOrd   p x op y) = emitTmp =<< cmp   (fromOrd p) op' <$> compileExp x <*> compileExp y
@@ -329,10 +329,10 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileStms SEmpty = pure false
   compileStms (SExp x SCons ss) = do compileExp x
                                      compileStms ss
-  compileStms (SDecl t id x p SCons ss) = do x' ← compileExp x
-                                             withNewVar id x' $ compileStms ss
-  compileStms (SAss id e x SCons ss)    = do emit =<< store <$> compileExp e <*> getPtr x
-                                             compileStms ss
+  compileStms (SDecl t x SCons ss) = do x' ← compileExp x
+                                        withNewVar x' $ compileStms ss
+  compileStms (SAss e p  SCons ss) = do emit =<< store <$> compileExp e <*> getPtr p
+                                        compileStms ss
   compileStms (SAssIdx arr i x  SCons ss) = do arr' ← compileExp arr
                                                i' ← compileExp i
                                                x' ← compileExp x
@@ -348,11 +348,11 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
       where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
             reShapeP' (here refl) = here refl
             reShapeP' (there x) = there (reShapeP' x)
-  compileStms (SFor id arr s SCons ss) = do arr' ← compileExp arr
-                                            forArray arr' λ v* → do
-                                                  v ← emitTmp (load v*)
-                                                  inNewBlock $ withNewVar id v (compileStms s)
-                                            compileStms ss
+  compileStms (SFor arr s SCons ss) = do arr' ← compileExp arr
+                                         forArray arr' λ v* → do
+                                               v ← emitTmp (load v*)
+                                               inNewBlock $ withNewVar v (compileStms s)
+                                         compileStms ss
   compileStms (SWhile x s  SCons ss) = do preCond ← newLabel
                                           loop    ← newLabel
                                           end     ← newLabel
@@ -397,16 +397,20 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileFun glob def = let s , f = runCM compileBody (initState glob)
                         in f , globalS s
     where open Def def
-          withInitBlock : Unique Δ → CM ((Δ ++r Δ') ∷ []) A → CM (Δ' ∷ []) A
+          withInitBlock : Params Δ → CM (Δ ∷ []) A → CM ([] ∷ []) A
           withInitBlock [] m = m
-          withInitBlock (_∷_ {id} p xs) m = withNewVar id (local id) (withInitBlock xs m)
+          withInitBlock (i ∷ is) m = withInitBlock is (withNewVar (local i) m)
+
+          llvmParams : ∀ {ts} → Params ts → Params (llvmTypes ts)
+          llvmParams []         = []
+          llvmParams (px ∷ pxs) = px ∷ llvmParams pxs
 
           compileBody : CM ([] ∷ []) (FunDef _ _ _)
           compileBody = do putLabel (ident "entry")
-                           withInitBlock unique do
+                           withInitBlock params do
                                  compileStms body
                                  body ← block <$> get
-                                 pure (record { idents = idents
+                                 pure (record { params = llvmParams params
                                               ; body = body
                                               })
 

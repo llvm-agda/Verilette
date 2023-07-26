@@ -15,7 +15,7 @@ open import Data.String using (String; _≟_; _++_ )
 open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left renaming (monad to monadSum)
 open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
-open import Data.List using (List; _∷_ ; []; map; zip; unzipWith; reverse) renaming (_++_ to _+++_)
+open import Data.List using (List; _∷_ ; []; map; zip; unzip; reverse) renaming (_++_ to _+++_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Function using (case_of_)
@@ -61,26 +61,29 @@ open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 checkFun : (Σ : SymbolTab) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
 checkFun Σ χ t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
 checkFun Σ χ t ts (struct x fs)   = error "struct  is not a function"
-checkFun Σ χ t ts (fnDef t' x as (block b)) = do
+checkFun Σ χ t ts (fnDef t' x as (block b)) with
+  params ← map (λ {(argument t id) → id , t}) as = do
     refl ← t =?= t'
-    let (ids , ts') = unzipWith (λ {(argument t id) → id , t}) as
-    eqLists ts ts'
-    let params = zip ids ts
+    refl ← eqLists ts (dropAllId' params)
     unique  ← checkUnique params
-    _ , ss' ← checkStms (reverse params ∷ []) b
+    _ , ss' ← checkStms (params ∷ []) b
     returns ← CH.checkReturn ss'
-    pparam  ← checkAll (_=/= void) ts
-    pure (record { idents    = ids
+    noVoid  ← checkAll (_=/= void) ts
+    pure (record { params    = formatParams params
                  ; body      = toStms ss'
-                 ; voidparam = pparam
-                 ; unique    = unique
-                 ; return    = returnProof returns })
+                 ; voidparam = noVoid
+                 ; return    = returnProof returns
+                 })
   where import TypeCheck.CheckExp Σ χ as CH
         open CH.CheckStatements t
-        open import Translate Σ χ using (toStms)
+        open import Translate Σ χ using (toStms; dropAllId')
 
         import TypeCheck.Proofs as TCP
         open TCP.ReturnsProof  Σ χ using (returnProof)
+
+        formatParams : (Δ : List (Id × Type)) → Params (dropAllId' Δ)
+        formatParams [] = []
+        formatParams ((id , _) ∷ Δ) = id ∷ formatParams Δ
 
 checkFuns : (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)
 checkFuns χ Σ' [] [] = pure []
