@@ -92,28 +92,28 @@ toZero (NonVoidStruct _) = EStruct
 
 toDecls : ∀ {is t} → NonVoid χ t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
 toDecls n [] ss = ss
-toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ (toZero n) ) SCons toDecls n is ss
-toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ (toExp e') ) SCons toDecls n is ss
+toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ (toZero n) ) ∷ toDecls n is ss
+toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ (toExp e') ) ∷ toDecls n is ss
 
 
 toStms : ∀ {T Γ ss Δ Δ'} → _⊢_⇒⇒_ χ T (Δ ∷ Γ) ss Δ' → Stms T (dropAllId (Δ ∷ Γ))
 _SCons'_ : ∀ {s} → _⊢_⇒_ χ T (Δ ∷ Γ) s Δ' → Stms T (dropAllId ((Δ' ++ Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
 toStms (x ∷ ss) = x SCons' (toStms ss)
-toStms {void} {[]} [] = (SReturn vRet) SCons SEmpty
-toStms {_}    {_}  [] = SEmpty
+toStms {void} {[]} [] = SReturn vRet ∷ []
+toStms {_}    {_}  [] = []
 
 _SCons'_ {Δ = Δ} (decl {Δ' = Δ'} t n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
 empty          SCons' ss = ss
-bStmt x        SCons' ss = (SBlock (toStms x)) SCons ss
-ass id x e     SCons' ss = SAss (toExp e) (simplifyLookup x) SCons ss
-assIdx arr i e SCons' ss = (SAssIdx (toExp arr) (toExp i) (toExp e)) SCons ss
-incr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.+ (EValue (Int.+ 1))) (simplifyLookup x) SCons ss
-decr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.- (EValue (Int.+ 1))) (simplifyLookup x) SCons ss
-ret x          SCons' ss = SReturn (Ret (toExp x)) SCons ss
-vRet refl      SCons' ss = SReturn vRet            SCons ss
-cond x s       SCons' ss = SIfElse (toExp x) (s SCons' SEmpty) SEmpty      SCons ss
-condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' SEmpty) (f SCons' SEmpty) SCons ss
-while x s      SCons' ss = SWhile (toExp x) (s SCons' SEmpty) SCons ss
-for id e s     SCons' ss = SFor (toExp e) (s SCons' SEmpty) SCons ss
-sExp x         SCons' ss = SExp (toExp x) SCons ss
-assPtr x p q y SCons' ss = SAssPtr (toExp x) p q (toExp y) SCons ss
+bStmt x        SCons' ss = (SBlock (toStms x)) ∷ ss
+ass id x e     SCons' ss = SAss (toExp e) (simplifyLookup x) ∷ ss
+assIdx arr i e SCons' ss = (SAssIdx (toExp arr) (toExp i) (toExp e)) ∷ ss
+incr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.+ (EValue (Int.+ 1))) (simplifyLookup x) ∷ ss
+decr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.- (EValue (Int.+ 1))) (simplifyLookup x) ∷ ss
+ret x          SCons' ss = SReturn (Ret (toExp x)) ∷ ss
+vRet refl      SCons' ss = SReturn vRet            ∷ ss
+cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss
+condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' []) (f SCons' []) ∷ ss
+while x s      SCons' ss = SWhile (toExp x) (s SCons' []) ∷ ss
+sExp x         SCons' ss = SExp (toExp x) ∷ ss
+assPtr x p q y SCons' ss = SAssPtr (toExp x) p q (toExp y) ∷ ss
+for id e s     SCons' ss = SFor (toExp e) (s SCons' []) ∷ ss

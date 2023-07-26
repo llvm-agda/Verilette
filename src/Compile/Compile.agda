@@ -326,71 +326,71 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   -- compileStms returns true if it encountered a return
   -- This is used to return early
   compileStms  : (ss : Stms  Σ χ t Γ) → CM Γ Bool
-  compileStms SEmpty = pure false
-  compileStms (SExp x SCons ss) = do compileExp x
-                                     compileStms ss
-  compileStms (SDecl t x SCons ss) = do x' ← compileExp x
-                                        withNewVar x' $ compileStms ss
-  compileStms (SAss e p  SCons ss) = do emit =<< store <$> compileExp e <*> getPtr p
-                                        compileStms ss
-  compileStms (SAssIdx arr i x  SCons ss) = do arr' ← compileExp arr
-                                               i' ← compileExp i
-                                               x' ← compileExp x
-                                               i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
-                                               emit (store x' i'')
-                                               compileStms ss
-  compileStms (SAssPtr e p p' x SCons ss) = do e' ← compileExp e
-                                               x' ← compileExp x
-                                               s ← lookupNamed e' p
-                                               ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
-                                               emit (store x' ptr)
-                                               compileStms ss
+  compileStms [] = pure false
+  compileStms (SExp x ∷ ss) = do compileExp x
+                                 compileStms ss
+  compileStms (SDecl t x ∷ ss) = do x' ← compileExp x
+                                    withNewVar x' $ compileStms ss
+  compileStms (SAss e p  ∷ ss) = do emit =<< store <$> compileExp e <*> getPtr p
+                                    compileStms ss
+  compileStms (SAssIdx arr i x  ∷ ss) = do arr' ← compileExp arr
+                                           i' ← compileExp i
+                                           x' ← compileExp x
+                                           i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
+                                           emit (store x' i'')
+                                           compileStms ss
+  compileStms (SAssPtr e p p' x ∷ ss) = do e' ← compileExp e
+                                           x' ← compileExp x
+                                           s ← lookupNamed e' p
+                                           ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
+                                           emit (store x' ptr)
+                                           compileStms ss
       where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
             reShapeP' (here refl) = here refl
             reShapeP' (there x) = there (reShapeP' x)
-  compileStms (SFor arr s SCons ss) = do arr' ← compileExp arr
-                                         forArray arr' λ v* → do
-                                               v ← emitTmp (load v*)
-                                               inNewBlock $ withNewVar v (compileStms s)
-                                         compileStms ss
-  compileStms (SWhile x s  SCons ss) = do preCond ← newLabel
-                                          loop    ← newLabel
-                                          end     ← newLabel
+  compileStms (SFor arr s ∷ ss) = do arr' ← compileExp arr
+                                     forArray arr' λ v* → do
+                                           v ← emitTmp (load v*)
+                                           inNewBlock $ withNewVar v (compileStms s)
+                                     compileStms ss
+  compileStms (SWhile x s  ∷ ss) = do preCond ← newLabel
+                                      loop    ← newLabel
+                                      end     ← newLabel
 
-                                          emit (jmp preCond)
-                                          putLabel preCond
-                                          x' ← compileExp x
-                                          emit (branch x' loop end)
+                                      emit (jmp preCond)
+                                      putLabel preCond
+                                      x' ← compileExp x
+                                      emit (branch x' loop end)
 
-                                          putLabel loop
-                                          inNewBlock (compileStms s >> emit (jmp preCond))
-                                          putLabel end
-                                          compileStms ss
-  compileStms (SBlock s SCons ss) = do b ← inNewBlock $ compileStms s
-                                       if b then pure true
-                                            else compileStms ss
-  compileStms (SIfElse x t f SCons ss) = do trueL  ← newLabel
-                                            falseL ← newLabel
-                                            end    ← newLabel
+                                      putLabel loop
+                                      inNewBlock (compileStms s >> emit (jmp preCond))
+                                      putLabel end
+                                      compileStms ss
+  compileStms (SBlock s ∷ ss) = do b ← inNewBlock $ compileStms s
+                                   if b then pure true
+                                        else compileStms ss
+  compileStms (SIfElse x t f ∷ ss) = do trueL  ← newLabel
+                                        falseL ← newLabel
+                                        end    ← newLabel
 
-                                            x' ← compileExp x
-                                            emit (branch x' trueL falseL)
-                                            putLabel trueL
-                                            tRet  ← inNewBlock $ compileStms t
-                                            unless tRet $ emit (jmp end)
+                                        x' ← compileExp x
+                                        emit (branch x' trueL falseL)
+                                        putLabel trueL
+                                        tRet  ← inNewBlock $ compileStms t
+                                        unless tRet $ emit (jmp end)
 
-                                            putLabel falseL
-                                            fRet ← inNewBlock $ compileStms f
-                                            unless fRet $ emit (jmp end)
+                                        putLabel falseL
+                                        fRet ← inNewBlock $ compileStms f
+                                        unless fRet $ emit (jmp end)
 
-                                            if tRet ∧ fRet then pure true
-                                                            else do putLabel end
-                                                                    compileStms ss
-  compileStms (SReturn vRet SCons _)    = do emit vret
-                                             pure true
-  compileStms (SReturn (Ret x) SCons _) = do x' ← compileExp x
-                                             emit (ret x')
-                                             pure true
+                                        if tRet ∧ fRet then pure true
+                                                        else do putLabel end
+                                                                compileStms ss
+  compileStms (SReturn vRet ∷ _)    = do emit vret
+                                         pure true
+  compileStms (SReturn (Ret x) ∷ _) = do x' ← compileExp x
+                                         emit (ret x')
+                                         pure true
 
 
   compileFun : GlobalState → Def Σ χ ts t → (FunDef (llvmSym Σ) (llvmTypes ts) (llvmType t) × GlobalState)

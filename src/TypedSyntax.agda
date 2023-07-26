@@ -187,12 +187,12 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     nextCtx {Γ} (SReturn x)       = Γ
 
     data Stms (Γ : Ctx) : Set where
-      SEmpty  : Stms Γ
-      _SCons_ : (s : Stm Γ) → Stms (nextCtx s) → Stms Γ
+      []  : Stms Γ
+      _∷_ : (s : Stm Γ) → Stms (nextCtx s) → Stms Γ
 
     lastCtx : Stms Γ → Ctx
-    lastCtx {Γ} SEmpty = Γ
-    lastCtx {Γ} (s SCons x) = lastCtx x
+    lastCtx {Γ} [] = Γ
+    lastCtx {Γ} (s ∷ x) = lastCtx x
 
 open Typed
 open Valid
@@ -203,8 +203,8 @@ data returnStm  {  Σ χ Γ} : (s  : Stm  Σ χ T Γ) → Set where
   SBlock  : {ss : Stms Σ χ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
   SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ χ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
-  SHead : ∀ {s ss} → returnStm  s  → returnStms (s SCons ss)
-  SCon  : ∀ {s ss} → returnStms ss → returnStms (s SCons ss)
+  SHead : ∀ {s ss} → returnStm  s  → returnStms (s ∷ ss)
+  SCon  : ∀ {s ss} → returnStms ss → returnStms (s ∷ ss)
 
 
 record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where
