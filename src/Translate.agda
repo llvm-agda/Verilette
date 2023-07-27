@@ -58,7 +58,7 @@ toExp (neg p x)     = EArith p   (EValue (zero p)) ArithOp.- (toExp x)
 toExp (not x)       = EEq EqBool (EValue Bool.false) EqOp.== (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eDeRef x p p') = EDeRef (toExp x) p p'
-toExp (eNull x)     = ENull
+toExp (eNull x)     = EValue 0
 toExp (eStruct x)   = EStruct
 toExp (eArray n)    = EArray (toNew n)
   where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew (Exp (dropAllId Γ) int) array t'

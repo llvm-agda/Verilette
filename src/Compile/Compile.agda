@@ -295,10 +295,9 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                 p ← emitTmp (calloc (const (pos 1)) size)
                                 emitTmp (bitCast p (named n *))
 
-  compileExp ENull      = pure null
   compileExp (EDeRef x p p') = do x' ← compileExp x
                                   s ← lookupNamed x' p
-                                  ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
+                                  ptr ← emitTmp (getElemPtr s 0 (struct (reShapeP' p') ∷ []))
                                   emitTmp (load ptr)
       where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
             reShapeP' (here refl) = here refl

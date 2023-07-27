@@ -148,7 +148,6 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
     EArray  : ∀ {t} → WFNew (Exp Γ int) array t → Exp Γ t
     EStruct : ∀ {n} → Exp Γ (structT n)
-    ENull   : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
     EDeRef  : ∀ {n n' fs t c} → Exp Γ (structT n) → (n , c , fs) ∈ χ →  (n' , t) ∈ fs → Exp Γ t
     EPrintStr : String → Exp Γ void
