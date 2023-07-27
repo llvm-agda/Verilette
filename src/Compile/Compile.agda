@@ -283,15 +283,19 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                i' ← compileExp i
                                iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
                                emitTmp (load iPtr)
-  compileExp (EArray new) = callocNew new
-    where callocNew : WFNew Σ χ Γ t → CM Γ (Operand (llvmType t))
-          callocNew (nType  t len)     = callocArray (llvmType t) =<< compileExp len
-          callocNew (nArray {t} n len) = do pArr ← callocArray (llvmType t) =<< compileExp len
-                                            forArray pArr λ t* → do
-                                                  new ← callocNew n
-                                                  emit (store new t*)
-                                                  pure false
-                                            pure pArr
+  compileExp (EArray new) = callocNew =<< compileWFNew new
+    where compileWFNew : WFNew (Exp Σ χ Γ OldType.int) OldType.array t → CM Γ (WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) (llvmType t))
+          compileWFNew (nType  t  x) = nType (llvmType t) <$> compileExp x
+          compileWFNew (nArray xs x) = nArray <$> compileWFNew xs <*> compileExp x
+
+          callocNew : ∀ {t} → WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) t → CM Γ (Operand t)
+          callocNew (nType  t len) = callocArray t len
+          callocNew (nArray n len) = do pArr ← callocArray _ len
+                                        forArray pArr λ t* → do
+                                              new ← callocNew n
+                                              emit (store new t*)
+                                              pure false
+                                        pure pArr
   compileExp (EStruct {n}) = do size' ← emitTmp (getElemPtr {named n} null 1 [])
                                 size ← emitTmp (ptrToInt size')
                                 p ← emitTmp (calloc (const (pos 1)) size)

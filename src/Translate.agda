@@ -57,7 +57,7 @@ toExp (eDeRef x p p') = EDeRef (toExp x) p p'
 toExp (eNull x)     = ENull
 toExp (eStruct x)   = EStruct
 toExp (eArray n)    = EArray (toNew n)
-  where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew (dropAllId Γ) t'
+  where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew (Exp (dropAllId Γ) int) array t'
         toNew (nType  x _)  = nType _ (toExp x)
         toNew (nArray x ns) = nArray (toNew ns) (toExp x)
 toExp (eLength x)        = ELength (toExp x)  -- Transform to normal function call?

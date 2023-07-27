@@ -127,17 +127,16 @@ data Return (P : (Type → Set)) : Type -> Set where
   vRet : Return P void
   Ret : P t -> Return P t
 
+data WFNew {T : Set} (E : Set) (w : T → T) : T → Set where
+  nType  : (t : T)             → E → WFNew E w (w t)
+  nArray : ∀ {t} → WFNew E w t → E → WFNew E w (w t)
+
 
 --------------------------------------------------------------------------------
 -- EXPRESSIONS AND STATEMENTS
 module Typed (Σ : SymbolTab) (χ : TypeTab) where
 
-  data Exp (Γ : Ctx) : Type → Set
-  data WFNew (Γ : Ctx) : Type → Set where
-    nType  : (t : Type) → Exp Γ int → WFNew Γ (array t)
-    nArray : ∀ {t} → WFNew Γ t → Exp Γ int → WFNew Γ (array t)
-
-  data Exp Γ where
+  data Exp (Γ : Ctx) : Type → Set where
     EValue  : toSet T  → Exp Γ T
     EId     : T ∈' Γ → Exp Γ T
     EAPP    : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
@@ -149,7 +148,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     ENeg    : Num T → Exp Γ T → Exp Γ T
     ENot    : Exp Γ bool → Exp Γ bool
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
-    EArray  : ∀ {t} → WFNew Γ t → Exp Γ t
+    EArray  : ∀ {t} → WFNew (Exp Γ int) array t → Exp Γ t
     EStruct : ∀ {n} → Exp Γ (structT n)
     ENull   : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
