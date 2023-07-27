@@ -42,6 +42,10 @@ simplifyLookup : (id , t) ∈' Γ → t ∈' (dropAllId Γ)
 simplifyLookup (here px) = here (simplifyLookup' px)
 simplifyLookup (there x) = there (simplifyLookup x)
 
+zero : Num T → toSet T
+zero NumInt    = Int.0ℤ
+zero NumDouble = 0.0
+
 
 -- Every well typed expression can be transformed into our representation
 toExp : Γ ⊢ e ∶ T → Exp (dropAllId Γ) T
@@ -50,8 +54,8 @@ toExp (eLitInt x)   = EValue x
 toExp (eLitDoub x)  = EValue x
 toExp eLitTrue      = EValue Bool.true
 toExp eLitFalse     = EValue Bool.false
-toExp (neg p x)     = ENeg p (toExp x)
-toExp (not x)       = ENot   (toExp x)
+toExp (neg p x)     = EArith p   (EValue (zero p)) ArithOp.- (toExp x)
+toExp (not x)       = EEq EqBool (EValue Bool.false) EqOp.== (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eDeRef x p p') = EDeRef (toExp x) p p'
 toExp (eNull x)     = ENull
@@ -82,18 +86,18 @@ toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 
-toZero : ∀ {Γ'} → NonVoid χ T → Exp Γ' T
-toZero NonVoidInt  = EValue Int.0ℤ
-toZero NonVoidDoub = EValue 0.0
-toZero NonVoidBool = EValue Bool.false
-toZero (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
-toZero (NonVoidStruct _) = EStruct
 
+defInit : ∀ {Γ'} → NonVoid χ T → Exp Γ' T
+defInit NonVoidInt  = EValue Int.0ℤ
+defInit NonVoidDoub = EValue 0.0
+defInit NonVoidBool = EValue Bool.false
+defInit (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
+defInit (NonVoidStruct _) = EStruct
 
 toDecls : ∀ {is t} → NonVoid χ t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
 toDecls n [] ss = ss
-toDecls n (_∷_ {i = noInit x}  px       is) ss = (SDecl _ (toZero n) ) ∷ toDecls n is ss
-toDecls n (_∷_ {i = init x _} (px , e') is) ss = (SDecl _ (toExp e') ) ∷ toDecls n is ss
+toDecls n (_∷_ {i = noInit x}  px       is) ss = SDecl _ (defInit n) ∷ toDecls n is ss
+toDecls n (_∷_ {i = init x _} (px , e') is) ss = SDecl _ (toExp  e') ∷ toDecls n is ss
 
 
 toStms : ∀ {T Γ ss Δ Δ'} → _⊢_⇒⇒_ χ T (Δ ∷ Γ) ss Δ' → Stms T (dropAllId (Δ ∷ Γ))

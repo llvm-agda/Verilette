@@ -145,8 +145,6 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EOrd    : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
     EEq     : Eq T  → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
     ELogic  : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
-    ENeg    : Num T → Exp Γ T → Exp Γ T
-    ENot    : Exp Γ bool → Exp Γ bool
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
     EArray  : ∀ {t} → WFNew (Exp Γ int) array t → Exp Γ t
     EStruct : ∀ {n} → Exp Γ (structT n)

@@ -115,10 +115,6 @@ instance
 runCM : CM Γ A → CMState Γ → (CMState Γ × A)
 runCM m s = runState m s
 
-toZero : {T : OldType} → Num T → toSet (llvmType T)
-toZero NumInt    = pos 0
-toZero NumDouble = 0.0
-
 lookupPtr' : BlockList Δ → t ∈ Δ → Operand (llvmType t *)
 lookupPtr' (x ∷ b) (here refl) = x
 lookupPtr' (_ ∷ b) (there x)   = lookupPtr' b x
@@ -277,8 +273,6 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                   putLabel end
                                   emitTmp (load res)
 
-  compileExp (ENeg p e) = emitTmp =<< arith (fromNum p) ArithOp.- (const (toZero p)) <$> compileExp e
-  compileExp (ENot e)   = emitTmp =<< cmp i1            RelOp.eQU (const false)      <$> compileExp e
   compileExp (EIdx arr i) = do arrPtr ← compileExp arr
                                i' ← compileExp i
                                iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
