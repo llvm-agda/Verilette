@@ -92,7 +92,8 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
 
 module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
 
-  open WellTyped.Statements Σ
+  open WellTyped.Statements Σ χ
+  open WellTyped.Declarations Σ χ
   open WellTyped.Return
 
   open TS.Valid Σ χ
@@ -107,13 +108,13 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
 
   returnDecl : ∀ {T Γ Δ Δ' t is} (n : TS.NonVoid χ t)
                {ss : Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ))}
-               (is' : DeclP Σ χ t is (Δ ∷ Γ) Δ')
+               (is' : DeclP t (Δ ∷ Γ) is Δ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
-  returnDecl n [] p = p
-  returnDecl n (_∷_ {i = noInit x} px is) p = SCon (returnDecl n is p)
-  returnDecl n (_∷_ {i = init x e} px is) p = SCon (returnDecl n is p)
+  returnDecl n noDecl p = p
+  returnDecl n (noInit px   is) p = SCon (returnDecl n is p)
+  returnDecl n (init   px e is) p = SCon (returnDecl n is p)
 
-  returnProofThere : ∀ {T s ss Δ Δ' Δ''} {sT : _⊢_⇒_ χ T (Δ ∷ Γ) s Δ'} {ssT : _⊢_⇒⇒_ χ T _ ss Δ''}
+  returnProofThere : ∀ {T s ss Δ Δ' Δ''} {sT : _⊢_⇒_ T (Δ ∷ Γ) s Δ'} {ssT : _⊢_⇒⇒_ T _ ss Δ''}
                             → TS.returnStms (toStms ssT) → TS.returnStms (toStms (sT ∷ ssT))
   returnProofThere {sT = empty} x = x
   returnProofThere {sT = ret x₁} x       = SHead SReturn
@@ -129,12 +130,12 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
   returnProofThere {sT = for id x₁ sT} x = SCon x
   returnProofThere {sT = sExp x₁} x      = SCon x
   returnProofThere {sT = assPtr x₁ x₂ x₃ x₄} x = SCon x
-  returnProofThere {Δ = Δ} {sT = decl {Δ' = Δ'} t n is} x
+  returnProofThere {Δ = Δ} {sT = decl {Δ' = Δ'} n is} x
                        rewrite sym (ʳ++-defn Δ' {Δ}) = returnDecl n is x -- Why is this rewrite necessary?
 
 
-  returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ χ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
-  returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  χ T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
+  returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
+  returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
   returnProofHere (ret e')  = SHead SReturn
   returnProofHere vRet      = SHead SReturn
   returnProofHere (bStmt x) = SHead (SBlock (returnProof x))

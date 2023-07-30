@@ -115,34 +115,29 @@ _,,_ : Block → Ctx → Ctx
 Δ ,, (Δ' ∷ Γ) = (Δ ++ Δ') ∷ Γ
 
 
-ItemP : (Σ : SymbolTab) → (χ : TypeTab) → Type → Ctx → Item → Set
-ItemP _ _ _ [] _      = ⊥
-ItemP _ _ _ (Δ ∷ Γ) (noInit id) =  id ∉ Δ
-ItemP Σ χ t (Δ ∷ Γ) (init id e) = (id ∉ Δ) × ((Δ ∷ Γ) ⊢ e ∶ t)
-  where open Expression Σ  χ
+module Declarations (Σ : SymbolTab) (χ : TypeTab) (t : Type) where
+  open Expression Σ χ
 
-itemId : Item → Id
-itemId (noInit x) = x
-itemId (init x e) = x
-
-data DeclP (Σ : SymbolTab) (χ : TypeTab) (T : Type) : List Item → (Γ : Ctx) → Block → Set where
-  []  : DeclP Σ χ T [] Γ []
-  _∷_ : ∀ {i is} → ItemP Σ χ T (Δ ∷ Γ) i → DeclP Σ χ T is (((itemId i , T) ∷ Δ) ∷ Γ) Δ' → DeclP Σ χ T (i ∷ is) (Δ ∷ Γ) ((itemId i , T) ∷ Δ')
+  data DeclP : (Γ : Ctx) → List Item → Block → Set where
+    noDecl : DeclP Γ [] []
+    noInit : ∀ {id   is} → id ∉ Δ                    → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (noInit id ∷ is) ((id , t) ∷ Δ')
+    init   : ∀ {id e is} → id ∉ Δ → (Δ ∷ Γ) ⊢ e ∶ t → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (init id e ∷ is) ((id , t) ∷ Δ')
 
 
 module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
-
   open Expression Σ χ
+  open Declarations Σ χ
+
 
   data _⊢_⇒⇒_ (Γ : Ctx) : List Stmt → Block → Set
   data _⊢_⇒_  (Γ : Ctx) :      Stmt → Block → Set where
     empty  : Γ ⊢ empty ⇒ []
     sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
     bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
-    decl   : ∀ t {is} → NonVoid χ t → DeclP Σ χ t is Γ Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
+    decl   : ∀ {t is} → NonVoid χ t → DeclP t Γ is Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
     ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ []
     assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ []
-    assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
+    assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ structT n → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
     incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
     decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
     ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []
@@ -180,7 +175,7 @@ module Return {Σ : SymbolTab} {χ : TypeTab} where
 
 module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
-  open Statements Σ χ T
+  open Statements Σ χ
   open Return {Σ} {χ}
 
   fromArgs : List Arg → Block

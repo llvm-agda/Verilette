@@ -22,7 +22,8 @@ open import TypedSyntax hiding (Γ; Δ; Δ') renaming (Block to newBlock; Ctx to
 module Translate (Σ : SymbolTab) (χ : TypeTab) where
 
 open Expression Σ χ renaming (WFNew to OldWFNew)
-open Statements Σ
+open Statements Σ χ
+open Declarations Σ χ
 open WellTyped.Return
 
 open Typed Σ χ
@@ -92,32 +93,32 @@ defInit NonVoidInt  = EValue Int.0ℤ
 defInit NonVoidDoub = EValue 0.0
 defInit NonVoidBool = EValue Bool.false
 defInit (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
-defInit (NonVoidStruct _) = EStruct
+defInit (NonVoidStruct _) = EValue 0
 
-toDecls : ∀ {is t} → NonVoid χ t → DeclP Σ χ t is (Δ ∷ Γ) Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
-toDecls n [] ss = ss
-toDecls n (_∷_ {i = noInit x}  px       is) ss = SDecl _ (defInit n) ∷ toDecls n is ss
-toDecls n (_∷_ {i = init x _} (px , e') is) ss = SDecl _ (toExp  e') ∷ toDecls n is ss
+toDecls : ∀ {is t} → NonVoid χ t → DeclP t (Δ ∷ Γ) is Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
+toDecls n  noDecl          ss = ss
+toDecls n (noInit id   ds) ss = SDecl _ (defInit n) ∷ toDecls n ds ss
+toDecls n (init   id e ds) ss = SDecl _ (toExp e)   ∷ toDecls n ds ss
 
 
-toStms : ∀ {T Γ ss Δ Δ'} → _⊢_⇒⇒_ χ T (Δ ∷ Γ) ss Δ' → Stms T (dropAllId (Δ ∷ Γ))
-_SCons'_ : ∀ {s} → _⊢_⇒_ χ T (Δ ∷ Γ) s Δ' → Stms T (dropAllId ((Δ' ++ Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
+toStms   : ∀ {ss} → _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'                                      → Stms T (dropAllId (Δ ∷ Γ))
+_SCons'_ : ∀ {s}  → _⊢_⇒_  T (Δ ∷ Γ) s  Δ' → Stms T (dropAllId ((Δ' ++ Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
 toStms (x ∷ ss) = x SCons' (toStms ss)
-toStms {void} {[]} [] = SReturn vRet ∷ []
-toStms {_}    {_}  [] = []
+toStms {T = void} {Γ = []} [] = SReturn vRet ∷ []
+toStms {_}        {_}      [] = []
 
-_SCons'_ {Δ = Δ} (decl {Δ' = Δ'} t n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
+_SCons'_ {Δ = Δ} (decl {Δ' = Δ'} n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
 empty          SCons' ss = ss
-bStmt x        SCons' ss = (SBlock (toStms x)) ∷ ss
+bStmt x        SCons' ss = SBlock (toStms x) ∷ ss
 ass id x e     SCons' ss = SAss (toExp e) (simplifyLookup x) ∷ ss
-assIdx arr i e SCons' ss = (SAssIdx (toExp arr) (toExp i) (toExp e)) ∷ ss
-incr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.+ (EValue (Int.+ 1))) (simplifyLookup x) ∷ ss
-decr id x      SCons' ss = SAss (EArith NumInt (EId (simplifyLookup x)) ArithOp.- (EValue (Int.+ 1))) (simplifyLookup x) ∷ ss
+assIdx arr i e SCons' ss = SAssIdx (toExp arr) (toExp i) (toExp e) ∷ ss
+incr id x      SCons' ss = let x' = simplifyLookup x in SAss (EArith NumInt (EId x') ArithOp.+ (EValue Int.1ℤ)) x' ∷ ss
+decr id x      SCons' ss = let x' = simplifyLookup x in SAss (EArith NumInt (EId x') ArithOp.- (EValue Int.1ℤ)) x' ∷ ss
 ret x          SCons' ss = SReturn (Ret (toExp x)) ∷ ss
 vRet refl      SCons' ss = SReturn vRet            ∷ ss
 cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' []) (f SCons' []) ∷ ss
-while x s      SCons' ss = SWhile (toExp x) (s SCons' []) ∷ ss
+while x s      SCons' ss = SWhile  (toExp x) (s SCons' []) ∷ ss
 sExp x         SCons' ss = SExp (toExp x) ∷ ss
 assPtr x p q y SCons' ss = SAssPtr (toExp x) p q (toExp y) ∷ ss
 for id e s     SCons' ss = SFor (toExp e) (s SCons' []) ∷ ss

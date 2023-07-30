@@ -127,6 +127,7 @@ module CheckExp (Γ : Ctx) where
 
 module CheckStatements (T : Type) where
   open Statements Σ χ T
+  open Declarations Σ χ
 
   open CheckExp
 
@@ -185,15 +186,15 @@ module CheckStatements (T : Type) where
   ... | []    = error "Can not declare variable in empty Ctx"
   ... | Δ ∷ Γ = do p ← ifNonVoid χ t
                    Δ' , is' ← checkIs Δ is
-                   pure (reverse Δ' , decl t p is')
-    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP Σ χ t is (Δ ∷ Γ)))
-          checkIs Δ [] = pure ([] , [])
+                   pure (reverse Δ' , decl p is')
+    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP t (Δ ∷ Γ) is))
+          checkIs Δ [] = pure ([] , noDecl)
           checkIs Δ (noInit id ∷ is) = do p  ← id notIn Δ
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
-                                          pure ((id , t) ∷ Δ' , p ∷ ps)
-          checkIs Δ (init id e ∷ is) = do p  ← zipM (id notIn Δ) (checkExp (Δ ∷ Γ) t e)
+                                          pure ((id , t) ∷ Δ' , noInit p ps)
+          checkIs Δ (init id e ∷ is) = do p , e'  ← zipM (id notIn Δ) (checkExp (Δ ∷ Γ) t e)
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
-                                          pure ((id , t) ∷ Δ' , p ∷ ps)
+                                          pure ((id , t) ∷ Δ' , init p e' ps)
 
 
 module _ where
@@ -203,7 +204,7 @@ module _ where
 
   checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Δ) → TCM (Returns  ss')
   checkReturn' : ∀ {s  t} → (s'  : _⊢_⇒_  t Γ s  Δ) → TCM (Returns' s')
-  checkReturn (s ∷ ss) = here <$> checkReturn' s <|> there <$> (checkReturn ss)
+  checkReturn (s ∷ ss) = here <$> checkReturn' s <|> there <$> checkReturn ss
   checkReturn {Γ = Δ ∷ []} {t = void} [] = pure vEnd
   checkReturn                         [] = error "CheckReturn failed; found no return"
 
