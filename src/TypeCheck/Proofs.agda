@@ -54,7 +54,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   inferProof (not eT) rewrite inferProof eT = refl
   inferProof (eMod eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eIndex x x₁) rewrite inferProof x₁ rewrite inferProof x = refl
-  inferProof (eArray x) = {!!}
+  inferProof (eArray p x) = {!!}
   inferProof (eStruct x) = {!!}
   inferProof (eNull x) = {!!}
   inferProof (eDeRef x x₁ x₂) = {!!}

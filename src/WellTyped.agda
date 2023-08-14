@@ -9,12 +9,12 @@ open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
-open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
+open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]; foldr) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Properties using (ʳ++-defn)
 
 open import Data.Empty using (⊥)
 
-open import Function using (_$_; _∘_; case_of_; case_return_of_)
+open import Function using (_$_; _∘_; case_of_; case_return_of_; const)
 
 open import Javalette.AST renaming (Ident to Id)
 open import TypedSyntax as TS using (SymbolTab; TypeTab;
@@ -56,16 +56,14 @@ data EqOp : RelOp → Set where
     eQU : EqOp eQU
     nE  : EqOp nE
 
+deLen : ArrDecl → Expr
+deLen (arraySize e) = e
 
 module Expression (Σ : SymbolTab) (χ : TypeTab) where
 
-  data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
-  data WFNew (Γ : Ctx) (t : Type) : List ArrDecl → Type → Set where
-    nType  : ∀ {e}       → Γ ⊢ e ∶ int → Basic χ t         → WFNew Γ t (arraySize e ∷ []) (array t)
-    nArray : ∀ {e ns t'} → Γ ⊢ e ∶ int → WFNew Γ t ns t' → WFNew Γ t (arraySize e ∷ ns) (array t')
 
   -- Typing judgements
-  data _⊢_∶_ Γ where
+  data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set where
     eLitInt   : ∀ x → Γ ⊢ eLitInt x ∶ int
     eLitDoub  : ∀ x → Γ ⊢ eLitDoub x ∶ doub
     eLitTrue  : Γ ⊢ eLitTrue ∶ bool
@@ -86,7 +84,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     eAdd : Num T → (op : _) → (Γ ⊢ x ∶ T) → (Γ ⊢ y ∶ T) → Γ ⊢ eAdd x op y ∶ T
 
     eIndex  : ∀ {t arr i} →  Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ eIndex arr i ∶ t
-    eArray  : ∀ {t t' ns} → WFNew Γ t ns t' → Γ ⊢ eNew t ns ∶ t'
+    eArray  : ∀ {t n ns} → Basic χ t → All (Γ ⊢_∶ int ∘ deLen) (n ∷ ns) → Γ ⊢ eNew t (n ∷ ns) ∶ foldr (const array) t (n ∷ ns)
     eLength : ∀ {e t}   →  Γ ⊢ e ∶ array t →  Γ ⊢ eAttrib e (ident "length") ∶ int
 
     eStruct : ∀ {c n fs} → (n , c , fs) ∈ χ  → Γ ⊢ eNew (structT c) [] ∶ structT n

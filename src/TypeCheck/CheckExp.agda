@@ -3,10 +3,10 @@ open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_) renaming (_++_ to _++s_)
 
-open import Function using (_$_)
+open import Function using (_$_; _∘_)
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
-open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
+open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]; foldr) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Relation.Unary.All using (All; reduce); open All
 
 open import Agda.Builtin.Bool using (true; false)
@@ -62,19 +62,17 @@ module CheckExp (Γ : Ctx) where
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
                           pure (eIndex e' i' ::: t)
-  infer (eNew (structT c) []) = do inList n fs p ← lookupConstructor c χ
-                                   pure (eStruct p ::: structT n)
+  infer (eNew t []) with t
+  ... | structT c = do inList n fs p ← lookupConstructor c χ
+                       pure (eStruct p ::: structT n)
+  ... | t = error "Tried to make a new array without size"
+  infer (eNew t (n ∷ ns)) = do b ← ifBasic χ t
+                               ns' ← inferNew (n ∷ ns)
+                               pure (eArray b ns' ::: _)
+        where inferNew : (nss : List ArrDecl) → TCM (All (Γ ⊢_∶ int ∘ deLen) nss)
+              inferNew []                 = pure []
+              inferNew (arraySize e ∷ es) = _∷_ <$> checkExp int e <*> inferNew es
 
-  infer (eNew t ns)  = do new' ::: t' ← inferNew ns
-                          pure (eArray new' ::: t')
-        where inferNew : (ns : List ArrDecl) → TCM (∃ (WFNew Γ t ns))
-              inferNew [] = error "Tried to make a new array without size"
-              inferNew (arraySize e ∷ []) = do e' ← checkExp int e
-                                               b ← ifBasic χ t
-                                               pure (nType e' b ::: array t)
-              inferNew (arraySize e ∷ ns) = do e' ← checkExp int e
-                                               ns' ::: t' ← inferNew ns
-                                               pure (nArray e' ns' ::: array t')
   infer (eAttrib e (ident "length")) = do e' ::: array t  ← infer e
                                              where e' ::: _ → error "Only arrays have length attribute"
                                           pure (eLength e' ::: int)

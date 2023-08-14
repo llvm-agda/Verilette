@@ -10,8 +10,9 @@ import Data.Bool    as Bool
 import Data.Integer as Int
 import Data.Float   as Doub
 
-open import Data.List using (List; _∷_; []; _++_; [_]; map) renaming (_ʳ++_ to _++r_)
+open import Data.List using (List; _∷_; []; _++_; [_]; map; foldr) renaming (_ʳ++_ to _++r_)
 open import Data.List.Properties using (ʳ++-defn)
+open import Function using (_∘_; const)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
@@ -21,7 +22,7 @@ open import TypedSyntax hiding (Γ; Δ; Δ') renaming (Block to newBlock; Ctx to
 -- Translating from WellTyped to TypedSyntax
 module Translate (Σ : SymbolTab) (χ : TypeTab) where
 
-open Expression Σ χ renaming (WFNew to OldWFNew)
+open Expression Σ χ
 open Statements Σ χ
 open Declarations Σ χ
 open WellTyped.Return
@@ -61,10 +62,10 @@ toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eDeRef x p p') = EDeRef (toExp x) p p'
 toExp (eNull x)     = EValue 0
 toExp (eStruct x)   = EStruct
-toExp (eArray n)    = EArray (toNew n)
-  where toNew : ∀ {n t t'} → OldWFNew Γ t n t' → WFNew (Exp (dropAllId Γ) int) array t'
-        toNew (nType  x _)  = nType _ (toExp x)
-        toNew (nArray x ns) = nArray (toNew ns) (toExp x)
+toExp (eArray _ ns) = EArray (toNew ns)
+  where toNew : ∀ {n ns t} → All (Γ ⊢_∶ int ∘ deLen) (n ∷ ns) → WFNew (Exp (dropAllId Γ) int) array (foldr (const array) t (n ∷ ns))
+        toNew (px ∷ [])          = nType  (toExp px)
+        toNew (px ∷ pxs@(_ ∷ _)) = nArray (toNew pxs) (toExp px)
 toExp (eLength x)        = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
 toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)
@@ -92,7 +93,7 @@ defInit : ∀ {Γ'} → NonVoid χ T → Exp Γ' T
 defInit NonVoidInt  = EValue Int.0ℤ
 defInit NonVoidDoub = EValue 0.0
 defInit NonVoidBool = EValue Bool.false
-defInit (NonVoidArray  _) = EArray (nType _ (EValue Int.0ℤ))
+defInit (NonVoidArray  _) = EArray (nType (EValue Int.0ℤ))
 defInit (NonVoidStruct _) = EValue 0
 
 toDecls : ∀ {is t} → NonVoid χ t → DeclP t (Δ ∷ Γ) is Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))

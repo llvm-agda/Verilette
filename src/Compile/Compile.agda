@@ -279,11 +279,11 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                emitTmp (load iPtr)
   compileExp (EArray new) = callocNew =<< compileWFNew new
     where compileWFNew : WFNew (Exp Σ χ Γ OldType.int) OldType.array t → CM Γ (WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) (llvmType t))
-          compileWFNew (nType  t  x) = nType (llvmType t) <$> compileExp x
+          compileWFNew (nType     x) = nType  <$> compileExp x
           compileWFNew (nArray xs x) = nArray <$> compileWFNew xs <*> compileExp x
 
           callocNew : ∀ {t} → WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) t → CM Γ (Operand t)
-          callocNew (nType  t len) = callocArray t len
+          callocNew (nType    len) = callocArray _ len
           callocNew (nArray n len) = do pArr ← callocArray _ len
                                         forArray pArr λ t* → do
                                               new ← callocNew n

@@ -128,7 +128,7 @@ data Return (P : (Type → Set)) : Type -> Set where
   Ret : P t -> Return P t
 
 data WFNew {T : Set} (E : Set) (w : T → T) : T → Set where
-  nType  : (t : T)             → E → WFNew E w (w t)
+  nType  : ∀ {t}               → E → WFNew E w (w t)
   nArray : ∀ {t} → WFNew E w t → E → WFNew E w (w t)
 
 
