@@ -112,7 +112,7 @@ module CheckExp (Γ : Ctx) where
                             where _ ::: t → error "non-bool expression found in and"
                         pure (eAnd x' y' ::: bool)
   infer (eOr x y)  = do (x' , y') ::: bool ← inferPair x y
-                            where _ ::: t → error "non-bool expression found in and"
+                            where _ ::: t → error "non-bool expression found in or"
                         pure (eOr  x' y' ::: bool)
   infer (eApp (ident "printString") (eString s ∷ [])) = pure (ePrintString s ::: void)
   infer (eApp x es) = do inList (ts , t) p ← lookupTCM x Σ
@@ -164,7 +164,7 @@ module CheckStatements (T : Type) where
                           where _ → error "Can not decrement non-int type"
                         pure ([] , decr x p)
   check Γ (ret e) = do e' ← checkExp Γ T e
-                       pure ([] , (ret e'))
+                       pure ([] , ret e')
   check Γ vRet = do refl ← T =?= void
                     pure ([] , vRet refl)
   check Γ (cond e t) = do e' ← checkExp Γ bool e
@@ -210,6 +210,6 @@ module _ where
 
   checkReturn' (condElse x s1 s2) = condElse <$> checkReturn' s1 <*> checkReturn' s2
   checkReturn' (bStmt x)   = bStmt <$> checkReturn x
-  checkReturn' (ret x)     = pure (ret x)
+  checkReturn' (ret _)     = pure ret
   checkReturn' (vRet refl) = pure vRet
   checkReturn' s = error "CheckReturn' failed; found non-returning stmt"

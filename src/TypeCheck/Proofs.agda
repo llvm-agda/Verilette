@@ -42,7 +42,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   =T=Refl (fun t ts) rewrite =T=Refl t rewrite eqListsRefl ts = refl
 
   -- Every well typed expression can be infered
-  inferProof : ∀ {e t} → (eT : Γ ⊢ e ∶ t) → infer e ≡ inj₂ (t , eT)
+  inferProof : ∀ {e t} → (eT : Γ ⊢ e ∶ t) → infer e ≡ inj₂ (eT ::: t)
   inferProof (eLitInt x) = refl
   inferProof (eLitDoub x) = refl
   inferProof eLitTrue = refl
@@ -136,12 +136,12 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
 
   returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'} → Returns ssT → TS.returnStms (toStms ssT)
   returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  T (Δ ∷ Γ) s  Δ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
-  returnProofHere (ret e')  = SHead SReturn
+  returnProofHere ret       = SHead SReturn
   returnProofHere vRet      = SHead SReturn
   returnProofHere (bStmt x) = SHead (SBlock (returnProof x))
   returnProofHere (condElse x x₁) = SHead (SIfElse (returnProofHere x) (returnProofHere x₁))
 
-  returnProof (there {s' = s'} {ss' = ss'} x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
+  returnProof {ssT = s' ∷ ss'} (there x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
   returnProof (here x) = returnProofHere  x
   returnProof vEnd     = SHead SReturn
 

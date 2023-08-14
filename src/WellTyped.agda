@@ -35,7 +35,7 @@ Ctx = List Block
 
 
 variable
-  e e' x y : Expr
+  e x y : Expr
   es : List Expr
   Δ Δ' : Block
   Γ : Ctx
@@ -57,14 +57,7 @@ data EqOp : RelOp → Set where
     nE  : EqOp nE
 
 
--- Well formed block
--- data WFBlock (χ : TypeTab) : (Δ : Block) → Set where
---   []  : WFBlock χ []
---   _∷_ : ∀ {id t Δ} → id ∉ Δ × NonVoid χ t → WFBlock χ Δ → WFBlock χ ((id , t) ∷ Δ)
-
-
 module Expression (Σ : SymbolTab) (χ : TypeTab) where
-
 
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set
   data WFNew (Γ : Ctx) (t : Type) : List ArrDecl → Type → Set where
@@ -152,25 +145,33 @@ module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     _∷_ : ∀ {s ss} → Γ ⊢ s ⇒ Δ  →  (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'  →  Γ ⊢ s ∷ ss ⇒⇒ (Δ' ++ Δ)
 
 
+-- Witness of return statments
 module Return {Σ : SymbolTab} {χ : TypeTab} where
 
   open Statements Σ χ
   open Expression Σ χ
 
-  data Returns' {Γ : Ctx} : ∀ {  T} {s  :      Stmt} → (_⊢_⇒_  T Γ s   Δ) → Set
-  data Returns            : ∀ {Γ T} {ss : List Stmt} → (_⊢_⇒⇒_ T Γ ss  Δ) → Set where
-    here  : ∀ {s ss} → {s' : _⊢_⇒_ T Γ s Δ} → {ss' : _⊢_⇒⇒_ T (Δ ,, Γ) ss Δ'}
-                       → Returns' s' → Returns (s' ∷ ss')
-    there : ∀ {s ss} → {s' : _⊢_⇒_ T Γ s Δ} → {ss' : _⊢_⇒⇒_ T (Δ ,, Γ) ss Δ'}
-                      → Returns ss' → Returns (s' ∷ ss')
-    vEnd : ∀ {Δ} → Returns {Γ = Δ ∷ []} {T = void} []
+  private
+    variable
+      s s1 s2 : Stmt
+      ss      : List Stmt
 
-  data Returns' {Γ} where
-    ret   : (e' : _⊢_∶_ Γ e T) → Returns' (ret e')
-    vRet  : Returns' (vRet refl)
-    bStmt : ∀ {ss} → {ss' : _⊢_⇒⇒_ T ([] ∷ Γ) ss Δ} → Returns ss' →  Returns' (bStmt ss')
-    condElse : ∀ {s1 s2} → { eB : _⊢_∶_ Γ e bool } → {s1' : _⊢_⇒_ T ([] ∷ Γ) s1 Δ} → {s2' : _⊢_⇒_ T ([] ∷ Γ) s2 Δ'}
-                     → Returns' s1' → Returns' s2' → Returns' (condElse eB s1' s2')
+      s' s1' s2' : _⊢_⇒_  T Γ s Δ
+      ss' : _⊢_⇒⇒_ T Γ ss Δ
+
+      e' : Γ ⊢ e ∶ T
+
+  data Returns' {Γ : Ctx} : ∀ {  T} → (_⊢_⇒_  T Γ s   Δ) → Set
+  data Returns            : ∀ {Γ T} → (_⊢_⇒⇒_ T Γ ss  Δ) → Set where
+    here  : Returns' s' → Returns (s' ∷ ss')
+    there : Returns ss' → Returns (s' ∷ ss')
+    vEnd  : Returns {Γ = Δ ∷ []} {T = void} []
+
+  data Returns' where
+    ret      : Returns' (ret e')
+    vRet     : Returns' (vRet refl)
+    bStmt    : Returns ss' → Returns' (bStmt ss')
+    condElse : Returns' s1' → Returns' s2' → Returns' (condElse e' s1' s2')
 
 
 module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
