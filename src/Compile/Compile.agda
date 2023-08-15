@@ -59,13 +59,13 @@ toSetProof (OldType.array t) = refl
 toSetProof (OldType.fun t ts) = refl
 
 BlockList : Block → Set
-BlockList Δ = TList (λ t → Operand (llvmType t *)) Δ
+BlockList = All (λ t → Operand (llvmType t *))
 
 CtxList : Ctx → Set
-CtxList Γ = TList BlockList  Γ
+CtxList = All BlockList
 
 SymTab : OldSymbolTab → Set
-SymTab Σ = TList (λ (id , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts))) Σ
+SymTab = All (λ (id , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts)))
 
 record GlobalState : Set where
   constructor gS
@@ -279,12 +279,12 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                emitTmp (load iPtr)
   compileExp (EArray new) = callocNew =<< compileWFNew new
     where compileWFNew : WFNew (Exp Σ χ Γ OldType.int) OldType.array t → CM Γ (WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) (llvmType t))
-          compileWFNew (nType     x) = nType  <$> compileExp x
-          compileWFNew (nArray xs x) = nArray <$> compileWFNew xs <*> compileExp x
+          compileWFNew (nType  x)    = nType  <$> compileExp x
+          compileWFNew (nArray x xs) = nArray <$> compileExp x <*> compileWFNew xs
 
           callocNew : ∀ {t} → WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) t → CM Γ (Operand t)
-          callocNew (nType    len) = callocArray _ len
-          callocNew (nArray n len) = do pArr ← callocArray _ len
+          callocNew (nType  len)   = callocArray _ len
+          callocNew (nArray len n) = do pArr ← callocArray _ len
                                         forArray pArr λ t* → do
                                               new ← callocNew n
                                               emit (store new t*)
@@ -314,7 +314,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
-    where mapCompileExp : TList (Exp Σ χ Γ) ts → CM Γ (TList Operand (llvmTypes ts))
+    where mapCompileExp : All (Exp Σ χ Γ) ts → CM Γ (All Operand (llvmTypes ts))
           mapCompileExp [] = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 

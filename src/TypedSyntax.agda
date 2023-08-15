@@ -44,9 +44,6 @@ Ctx = List Block
 Params : ∀ {A} → List A → Set
 Params = All (λ _ → Id)
 
-TList : (A → Set) → List A → Set
-TList = All
-
 variable
   T t : Type
   Ts ts : List Type
@@ -127,9 +124,10 @@ data Return (P : (Type → Set)) : Type -> Set where
   vRet : Return P void
   Ret : P t -> Return P t
 
+-- Nonempty-list that iterate w on the index for each item
 data WFNew {T : Set} (E : Set) (w : T → T) : T → Set where
-  nType  : ∀ {t}               → E → WFNew E w (w t)
-  nArray : ∀ {t} → WFNew E w t → E → WFNew E w (w t)
+  nType  : ∀ {t} → E               →  WFNew E w (w t)
+  nArray : ∀ {t} → E → WFNew E w t →  WFNew E w (w t)
 
 
 --------------------------------------------------------------------------------
@@ -139,7 +137,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
   data Exp (Γ : Ctx) : Type → Set where
     EValue  : toSet T  → Exp Γ T
     EId     : T ∈' Γ → Exp Γ T
-    EAPP    : (id : Id) → TList (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
+    EAPP    : (id : Id) → All (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
     EArith  : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
     EMod    : Exp Γ int → Exp Γ int → Exp Γ int
     EOrd    : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
@@ -194,10 +192,10 @@ open Typed
 open Valid
 
 data returnStms {T Σ χ Γ} : (ss : Stms Σ χ T Γ) → Set
-data returnStm  {  Σ χ Γ} : (s  : Stm  Σ χ T Γ) → Set where
-  SReturn : {e : Return (Exp Σ χ Γ) T} → returnStm (SReturn e)
-  SBlock  : {ss : Stms Σ χ T ([] ∷ Γ)} → returnStms ss → returnStm (SBlock ss)
-  SIfElse : ∀ {e} → ∀ {s1 s2 : Stms Σ χ T ([] ∷ Γ)} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
+data returnStm  {T Σ χ Γ} : (s  : Stm  Σ χ T Γ) → Set where
+  SReturn : ∀ {e}  → returnStm (SReturn e)
+  SBlock  : ∀ {ss} → returnStms ss → returnStm (SBlock ss)
+  SIfElse : ∀ {e s1 s2} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
   SHead : ∀ {s ss} → returnStm  s  → returnStms (s ∷ ss)
   SCon  : ∀ {s ss} → returnStms ss → returnStms (s ∷ ss)
@@ -215,7 +213,7 @@ record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  wh
 
 -- FunList contains a function parameterized by Σ' for each element in Σ.
 FunList : (χ : TypeTab) → (Σ' Σ : SymbolTab) → Set
-FunList χ Σ' = TList (λ (_ , (ts , t)) → Def Σ' χ ts t)
+FunList χ Σ' = All (λ (_ , (ts , t)) → Def Σ' χ ts t)
 
 record Program : Set where
   field

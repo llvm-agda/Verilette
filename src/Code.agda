@@ -85,7 +85,7 @@ data Instruction : (T : Type) → Set where
   alloc  : (T : Type) → Instruction (T *)
   load   : Operand (T *) → Instruction T
   store  : Operand T → Operand (T *) → Instruction void
-  call   : Operand (fun T Ts) → TList Operand Ts → Instruction T
+  call   : Operand (fun T Ts) → All Operand Ts → Instruction T
   phi    : List (Operand T × Label) → Instruction T
 
   ptrToInt   : ∀ {t} → Operand (t *) → Instruction i32
@@ -118,7 +118,7 @@ record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
 
 
 FunList' : (Σ' Σ : SymbolTab) → Set
-FunList' Σ' = TList (λ (_ , (ts , t)) → FunDef Σ' ts t)
+FunList' Σ' = All (λ (_ , (ts , t)) → FunDef Σ' ts t)
 
 record llvmProgram : Set where
   field

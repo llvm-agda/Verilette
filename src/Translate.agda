@@ -65,7 +65,7 @@ toExp (eStruct x)   = EStruct
 toExp (eArray _ ns) = EArray (toNew ns)
   where toNew : ∀ {n ns t} → All (Γ ⊢_∶ int ∘ deLen) (n ∷ ns) → WFNew (Exp (dropAllId Γ) int) array (foldr (const array) t (n ∷ ns))
         toNew (px ∷ [])          = nType  (toExp px)
-        toNew (px ∷ pxs@(_ ∷ _)) = nArray (toNew pxs) (toExp px)
+        toNew (px ∷ pxs@(_ ∷ _)) = nArray (toExp px) (toNew pxs)
 toExp (eLength x)        = ELength (toExp x)  -- Transform to normal function call?
 toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
 toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)
