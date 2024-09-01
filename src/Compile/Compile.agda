@@ -328,7 +328,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                  compileStms ss
   compileStms (SDecl t x ∷ ss) = do x' ← compileExp x
                                     withNewVar x' $ compileStms ss
-  compileStms (SAss e p  ∷ ss) = do emit =<< store <$> compileExp e <*> getPtr p
+  compileStms (SAss p e  ∷ ss) = do emit =<< store <$> compileExp e <*> getPtr p
                                     compileStms ss
   compileStms (SAssIdx arr i x  ∷ ss) = do arr' ← compileExp arr
                                            i' ← compileExp i

@@ -111,10 +111,10 @@ toStms {_}        {_}      [] = []
 _SCons'_ {Δ = Δ} (decl {Δ' = Δ'} n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
 empty          SCons' ss = ss
 bStmt x        SCons' ss = SBlock (toStms x) ∷ ss
-ass id x e     SCons' ss = SAss (toExp e) (simplifyLookup x) ∷ ss
+ass id x e     SCons' ss = SAss (simplifyLookup x) (toExp e) ∷ ss
 assIdx arr i e SCons' ss = SAssIdx (toExp arr) (toExp i) (toExp e) ∷ ss
-incr id x      SCons' ss = let x' = simplifyLookup x in SAss (EArith NumInt (EId x') ArithOp.+ (EValue Int.1ℤ)) x' ∷ ss
-decr id x      SCons' ss = let x' = simplifyLookup x in SAss (EArith NumInt (EId x') ArithOp.- (EValue Int.1ℤ)) x' ∷ ss
+incr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EArith NumInt (EId x') ArithOp.+ (EValue Int.1ℤ)) ∷ ss
+decr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EArith NumInt (EId x') ArithOp.- (EValue Int.1ℤ)) ∷ ss
 ret x          SCons' ss = SReturn (Ret (toExp x)) ∷ ss
 vRet refl      SCons' ss = SReturn vRet            ∷ ss
 cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss

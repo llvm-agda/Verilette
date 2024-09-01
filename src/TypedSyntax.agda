@@ -158,7 +158,7 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     data Stm : (Γ : Ctx) → Set  where
       SExp    : Exp Γ void → Stm Γ
       SDecl   : (t : Type) → Exp (Δ ∷ Γ) t → Stm (Δ ∷ Γ)
-      SAss    : (e : Exp Γ t) → t ∈' Γ → Stm Γ
+      SAss    : t ∈' Γ → (e : Exp Γ t) → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
       SAssPtr : ∀ {fs f n c} → Exp Γ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
