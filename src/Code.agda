@@ -11,6 +11,7 @@ open import Agda.Builtin.Float using (Float)
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star)
 
 open import Javalette.AST using (RelOp) renaming (Ident to Id)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
@@ -68,14 +69,10 @@ data Operand (T : Type) : Set where
   local  : (id : Id) → Operand T
   global : (id : Id) → Operand T
 
-
-data GetElem' : Type → Type → Set where
-  struct : ∀ {t ts} → t ∈ ts → GetElem' (struct ts) t
-  array  : ∀ {t n}  → Operand i32 → GetElem' [ n × t ] t
-
+-- Intended to be used with the transitive closure Star
 data GetElem : Type → Type → Set where
-  []  : ∀ {t} → GetElem t t
-  _∷_ : ∀ {t t' t''} → GetElem' t t' → GetElem t' t'' → GetElem t t''
+  struct : ∀ {t ts} → t ∈ ts      → GetElem (struct ts) t
+  array  : ∀ {t n}  → Operand i32 → GetElem [ n × t ] t
 
 
 data Instruction : (T : Type) → Set where
@@ -90,7 +87,7 @@ data Instruction : (T : Type) → Set where
 
   ptrToInt   : ∀ {t} → Operand (t *) → Instruction i32
   bitCast    : ∀ {t} → Operand t → (t' : Type) → Instruction t'
-  getElemPtr : ∀ {t t'} → Operand (t *) → ℕ → GetElem t t' → Instruction (t' *)
+  getElemPtr : ∀ {t t'} → Operand (t *) → ℕ → Star GetElem t t' → Instruction (t' *)
 
   -- Terminators
   jmp    : (l : Label) → Instruction void

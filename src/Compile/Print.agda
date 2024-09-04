@@ -5,6 +5,7 @@ open import Data.List using (List; _∷_; []; map)
 open import Data.Product using (_×_; _,_)
 open import Data.List.Relation.Unary.Any using (Any); open Any
 open import Data.List.Relation.Unary.All using (All; reduce); open All
+open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star) renaming (ε to []; _◅_ to _∷_)
 
 open import Data.Nat using (ℕ; suc; zero)
 
@@ -83,7 +84,7 @@ private
   pTypeDeptr : ∀ {t} → Operand (t *) → String
   pTypeDeptr {t} x = pType t
 
-  pGetElem : ∀ {t t'} → GetElem t t' → List String
+  pGetElem : ∀ {t t'} → Star GetElem t t' → List String
   pGetElem [] = []
   pGetElem (array  x ∷ xs) = pTypeOper x ∷ pGetElem xs
   pGetElem (struct x ∷ xs) = ("i32 " ++ showℕ (toℕ x)) ∷ pGetElem xs

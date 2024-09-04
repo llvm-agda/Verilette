@@ -107,7 +107,7 @@ module Declarations (Σ : SymbolTab) (χ : TypeTab) (t : Type) where
 
   data DeclP : (Γ : Ctx) → List Item → Block → Set where
     noDecl : DeclP Γ [] []
-    noInit : ∀ {id   is} → id ∉ Δ                    → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (noInit id ∷ is) ((id , t) ∷ Δ')
+    noInit : ∀ {id   is} → id ∉ Δ                   → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (noInit id ∷ is) ((id , t) ∷ Δ')
     init   : ∀ {id e is} → id ∉ Δ → (Δ ∷ Γ) ⊢ e ∶ t → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (init id e ∷ is) ((id , t) ∷ Δ')
 
 

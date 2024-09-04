@@ -2,6 +2,7 @@
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star) renaming (ε to []; _◅_ to _∷_)
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
 open import Data.List    using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
