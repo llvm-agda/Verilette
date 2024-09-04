@@ -8,6 +8,7 @@ open import Function using (_$_; _∘_)
 open import Data.Product using (_×_; _,_; ∃; proj₂)
 open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]; foldr) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
 open import Data.List.Relation.Unary.All using (All; reduce); open All
+open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 
 open import Agda.Builtin.Bool using (true; false)
 
@@ -36,7 +37,7 @@ module CheckExp (Γ : Ctx) where
   checkExp : (t : Type) → (e : Expr) → TCM (Γ ⊢ e ∶ t)
 
   infer     : (e  :      Expr) → TCM (∃ (Γ ⊢ e ∶_))
-  inferList : (es : List Expr) → TCM (∃ (AllPair (Γ ⊢_∶_) es) )
+  inferList : (es : List Expr) → TCM (∃ (Pointwise (Γ ⊢_∶_) es) )
   inferList [] = pure ([] ::: [])
   inferList (e ∷ es) = do e'  ::: t  ← infer e
                           es' ::: ts ← inferList es

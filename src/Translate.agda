@@ -4,6 +4,7 @@ open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 open import Data.Product using (_×_; _,_; proj₂)
 
 import Data.Bool    as Bool
@@ -84,7 +85,7 @@ toExp (eAnd x y)         = ELogic   (toExp x) LogicOp.&& (toExp y)
 toExp (eOr  x y)         = ELogic   (toExp x) LogicOp.|| (toExp y)
 toExp (ePrintString s) = EPrintStr s
 toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
-  where mapToExp : ∀ {es Ts} → AllPair (Γ ⊢_∶_) es Ts → All (Exp (dropAllId Γ)) Ts
+  where mapToExp : ∀ {es Ts} → Pointwise (Γ ⊢_∶_) es Ts → All (Exp (dropAllId Γ)) Ts
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs
 

@@ -7,6 +7,7 @@ open import Data.String using (_≟_)
 
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
 open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]; foldr) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
@@ -41,11 +42,6 @@ variable
   Γ : Ctx
 
 
-data AllPair {A B : Set} (P : A → B → Set) : List A → List B → Set where
-  []  : AllPair P [] []
-  _∷_ : ∀ {x y xs ys} → P x y → AllPair P xs ys → AllPair P (x ∷ xs) (y ∷ ys)
-
-
 data OrdOp : RelOp → Set where
     lTH : OrdOp lTH
     lE  : OrdOp lE
@@ -73,7 +69,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     -- and the block should contain the first occurance of id in the context.
     -- This is needed for completeness, see checkProof
     eVar : ∀ {t} id → (id , t)      ∈' Γ                           → Γ ⊢ eVar id    ∶ t
-    eApp : ∀     id → (id , Ts , T) ∈  Σ → AllPair (Γ ⊢_∶_) es Ts → Γ ⊢ eApp id es ∶ T
+    eApp : ∀     id → (id , Ts , T) ∈  Σ → Pointwise (Γ ⊢_∶_) es Ts → Γ ⊢ eApp id es ∶ T
 
     neg : Num T → Γ ⊢ e ∶ T    → Γ ⊢ neg e ∶ T
     not :         Γ ⊢ e ∶ bool → Γ ⊢ not e ∶ bool
