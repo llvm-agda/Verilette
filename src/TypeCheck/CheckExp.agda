@@ -80,7 +80,7 @@ module CheckExp (Γ : Ctx) where
   infer (eAttrib e (ident x₁)) = error $ "Found non-legal attribute: " ++s x₁
   infer (eDeRef e x) = do e' ::: structT n ← infer e
                              where e' ::: _ → error "Tried to deref non-struct"
-                          ( c , fs ) , p ← lookupTCM n χ
+                          (c , fs) , p ← lookupTCM n χ
                           t , p' ← lookupTCM x fs
                           pure (eDeRef e' p p' ::: t)
   infer (neg e) = do e' ::: t ← infer e
@@ -133,67 +133,67 @@ module CheckStatements (T : Type) where
   check     : (Γ : Ctx) → (s  :      Stmt) → TCM (∃ (Γ ⊢ s ⇒_))
 
   checkStms : (Γ : Ctx) → (ss : List Stmt) → TCM (∃ (Γ ⊢ ss ⇒⇒_))
-  checkStms Γ [] = pure ([] , [])
-  checkStms Γ (s ∷ ss) = do Δ  , s'  ← check Γ s
-                            Δ' , ss' ← checkStms (Δ ,, Γ) ss
-                            pure (Δ' ++ Δ , s' ∷ ss')
+  checkStms Γ [] = pure (_ , [])
+  checkStms Γ (s ∷ ss) = do _ , s'  ← check _ s
+                            _ , ss' ← checkStms _ ss
+                            pure (_ , s' ∷ ss')
 
-  check Γ empty = pure ([] , empty)
+  check Γ empty = pure (_ , empty)
   check Γ (bStmt (block ss)) = do _ , ss' ← checkStms ([] ∷ Γ) ss
-                                  pure ([] , bStmt ss')
+                                  pure (_ , bStmt ss')
 
   check Γ (ass (eVar x) e) = do t , p ← lookupCtx x Γ
                                 e' ← checkExp Γ t e
-                                pure ([] , ass x p e')
+                                pure (_ , ass x p e')
   check Γ (ass (eIndex arr i) x) = do i'     ← checkExp Γ int i
                                       t , x' ← infer Γ x
                                       arr'   ← checkExp Γ (array t) arr
-                                      pure ([] , assIdx arr' i' x')
+                                      pure (_ , assIdx arr' i' x')
   check Γ (ass (eDeRef e f) x) = do e' ::: structT t ← infer Γ e
                                        where e' ::: _ → error "Can not defer field from non-struct type"
                                     (c , fs) , p ← lookupTCM t χ
                                     t' , p' ← lookupTCM f fs
                                     x' ← checkExp Γ t' x
-                                    pure ([] , assPtr e' p p' x')
+                                    pure (_ , assPtr e' p p' x')
   check Γ (ass _ e) = error "Could not assign to expression"
   check Γ (incr x) = do int , p ← lookupCtx x Γ
                           where _ → error "Can not increment non-int type"
-                        pure ([] , incr x p)
+                        pure (_ , incr x p)
   check Γ (decr x) = do int , p ← lookupCtx x Γ
                           where _ → error "Can not decrement non-int type"
-                        pure ([] , decr x p)
+                        pure (_ , decr x p)
   check Γ (ret e) = do e' ← checkExp Γ T e
-                       pure ([] , ret e')
+                       pure (_ , ret e')
   check Γ vRet = do refl ← T =?= void
-                    pure ([] , vRet refl)
+                    pure (_ , vRet refl)
   check Γ (cond e t) = do e' ← checkExp Γ bool e
                           _ , t' ← check ([] ∷ Γ) t
-                          pure ([] , cond e' t')
+                          pure (_ , cond e' t')
   check Γ (condElse e t f) = do e' ← checkExp Γ bool e
                                 _ , t' ← check ([] ∷ Γ) t
                                 _ , f' ← check ([] ∷ Γ) f
-                                pure ([] , condElse e' t' f')
+                                pure (_ , condElse e' t' f')
   check Γ (while e s) = do e' ← checkExp Γ bool e
                            _ , s' ← check ([] ∷ Γ) s
-                           pure ([] , while e' s')
+                           pure (_ , while e' s')
   check Γ (for t id e s) = do e' ← checkExp Γ (array t) e
                               _ , s' ← check ([ id , t ] ∷ Γ) s
-                              pure ([] , (for id e' s'))
+                              pure (_ , (for id e' s'))
   check Γ (sExp e) = do e' ← checkExp Γ void e
-                        pure ([] , sExp e')
+                        pure (_ , sExp e')
   check Γ (decl t is) with Γ
   ... | []    = error "Can not declare variable in empty Ctx"
   ... | Δ ∷ Γ = do p ← ifNonVoid χ t
                    Δ' , is' ← checkIs Δ is
-                   pure (reverse Δ' , decl p is')
-    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (DeclP t (Δ ∷ Γ) is))
-          checkIs Δ [] = pure ([] , noDecl)
+                   pure (_ , decl p is')
+    where checkIs : ∀ Δ → (is : List Item) → TCM (∃ (Star' (DeclP t) (Δ ∷ Γ) is))
+          checkIs Δ [] = pure (_ , [])
           checkIs Δ (noInit id ∷ is) = do p  ← id notIn Δ
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
-                                          pure ((id , t) ∷ Δ' , noInit p ps)
+                                          pure (_ , noInit p ∷ ps)
           checkIs Δ (init id e ∷ is) = do p , e'  ← zipM (id notIn Δ) (checkExp (Δ ∷ Γ) t e)
                                           Δ' , ps ← checkIs ((id , t) ∷ Δ) is
-                                          pure ((id , t) ∷ Δ' , init p e' ps)
+                                          pure (_ , init p e' ∷ ps)
 
 
 module _ where
@@ -201,8 +201,8 @@ module _ where
   open Statements Σ χ
   open WellTyped.Return
 
-  checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Δ) → TCM (Returns  ss')
-  checkReturn' : ∀ {s  t} → (s'  : _⊢_⇒_  t Γ s  Δ) → TCM (Returns' s')
+  checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Γ') → TCM (Returns  ss')
+  checkReturn' : ∀ {s  t} → (s'  : _⊢_⇒_  t Γ s  Γ') → TCM (Returns' s')
   checkReturn (s ∷ ss) = here <$> checkReturn' s <|> there <$> checkReturn ss
   checkReturn {Γ = Δ ∷ []} {t = void} [] = pure vEnd
   checkReturn                         [] = error "CheckReturn failed; found no return"

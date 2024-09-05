@@ -39,7 +39,7 @@ variable
   e x y : Expr
   es : List Expr
   Δ Δ' : Block
-  Γ : Ctx
+  Γ Γ' Γ'' : Ctx
 
 
 data OrdOp : RelOp → Set where
@@ -97,18 +97,20 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
     ePrintString : ∀ s → Γ ⊢ eApp (ident "printString") (eString s ∷ []) ∶ void
 
 
-_,,_ : Block → Ctx → Ctx
-Δ ,, [] = Δ ∷ []
-Δ ,, (Δ' ∷ Γ) = (Δ ++ Δ') ∷ Γ
 
+-- Reflexiv Transitive closure over list, i.e. a chain
+module _ {A O : Set} (P : A → O → A → Set) where
+
+  data Star' (x : A) : List O → A → Set where
+    []  : Star' x [] x
+    _∷_ : ∀ {o os y z} → P x o y → Star' y os z → Star' x (o ∷ os) z
 
 module Declarations (Σ : SymbolTab) (χ : TypeTab) (t : Type) where
   open Expression Σ χ
 
-  data DeclP : (Γ : Ctx) → List Item → Block → Set where
-    noDecl : DeclP Γ [] []
-    noInit : ∀ {id   is} → id ∉ Δ                   → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (noInit id ∷ is) ((id , t) ∷ Δ')
-    init   : ∀ {id e is} → id ∉ Δ → (Δ ∷ Γ) ⊢ e ∶ t → DeclP (((id , t) ∷ Δ) ∷ Γ) is Δ' → DeclP (Δ ∷ Γ) (init id e ∷ is) ((id , t) ∷ Δ')
+  data DeclP : Ctx → Item → Ctx → Set where
+    noInit : ∀ {id  } → id ∉ Δ                   → DeclP (Δ ∷ Γ) (noInit id) (((id , t) ∷ Δ) ∷ Γ)
+    init   : ∀ {id e} → id ∉ Δ → (Δ ∷ Γ) ⊢ e ∶ t → DeclP (Δ ∷ Γ) (init id e) (((id , t) ∷ Δ) ∷ Γ)
 
 
 module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
@@ -116,27 +118,28 @@ module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
   open Declarations Σ χ
 
 
-  data _⊢_⇒⇒_ (Γ : Ctx) : List Stmt → Block → Set
-  data _⊢_⇒_  (Γ : Ctx) :      Stmt → Block → Set where
-    empty  : Γ ⊢ empty ⇒ []
-    sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ []
-    bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Δ → Γ ⊢ bStmt (block ss) ⇒ []
-    decl   : ∀ {t is} → NonVoid χ t → DeclP t Γ is Δ' → Γ ⊢ decl t is ⇒ reverse Δ'
-    ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ []
-    assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ []
-    assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ structT n → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ []
-    incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ []
-    decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ []
-    ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ []
-    vRet   : T ≡ void    →  Γ ⊢ vRet  ⇒ []
-    cond     : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Δ  →                       Γ ⊢ cond     e s   ⇒ []
-    condElse : ∀ {t f} → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ t ⇒ Δ  →  ([] ∷ Γ) ⊢ f ⇒ Δ' →  Γ ⊢ condElse e t f ⇒ []
-    while    : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Δ →                        Γ ⊢ while e s ⇒ []
-    for      : ∀ {t e s} id →  Γ ⊢ e ∶ array t  →  ([ id , t ] ∷ Γ) ⊢ s ⇒ Δ'  →  Γ ⊢ for t id e s ⇒ []
+  data _⊢_⇒_  (Γ : Ctx) :    Stmt → Ctx → Set
 
-  data _⊢_⇒⇒_ Γ where
-    []  : Γ ⊢ [] ⇒⇒ []
-    _∷_ : ∀ {s ss} → Γ ⊢ s ⇒ Δ  →  (Δ ,, Γ) ⊢ ss ⇒⇒ Δ'  →  Γ ⊢ s ∷ ss ⇒⇒ (Δ' ++ Δ)
+  -- Reflexive transitive closure of _⊢_⇒_, i.e. a link of statments
+  _⊢_⇒⇒_ : (Γ : Ctx) → List Stmt → Ctx → Set
+  _⊢_⇒⇒_ = Star' _⊢_⇒_
+
+  data _⊢_⇒_ Γ where
+    empty  : Γ ⊢ empty ⇒ Γ
+    sExp   : Γ ⊢ e ∶ void  →  Γ ⊢ sExp e ⇒ Γ
+    bStmt  : ∀ {ss} → ([] ∷ Γ) ⊢ ss ⇒⇒ Γ' → Γ ⊢ bStmt (block ss) ⇒ Γ
+    decl   : ∀ {t is} → NonVoid χ t → Star' (DeclP t) Γ is Γ' → Γ ⊢ decl t is ⇒ Γ'
+    ass    : ∀ {t} id → (id , t) ∈' Γ  →  Γ ⊢ e ∶ t    →  Γ ⊢ ass (eVar id) e ⇒ Γ
+    assIdx : ∀ {t arr i x}  → Γ ⊢ arr ∶ array t →  Γ ⊢ i ∶ int →  Γ ⊢ x ∶ t  →  Γ ⊢ ass (eIndex arr i) x ⇒ Γ
+    assPtr : ∀ {t s e fs f n c} → Γ ⊢ s ∶ structT n → (n , c , fs) ∈ χ → (f , t) ∈ fs → Γ ⊢ e ∶ t → Γ ⊢ ass (eDeRef s f) e ⇒ Γ
+    incr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ incr id ⇒ Γ
+    decr   : ∀ id → (id , int) ∈' Γ  →  Γ ⊢ decr id ⇒ Γ
+    ret    : Γ ⊢ e ∶ T  →  Γ ⊢ ret e ⇒ Γ
+    vRet   : T ≡ void    →  Γ ⊢ vRet  ⇒ Γ
+    cond     : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Γ' →                        Γ ⊢ cond     e s   ⇒ Γ
+    condElse : ∀ {t f} → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ t ⇒ Γ' →  ([] ∷ Γ) ⊢ f ⇒ Γ'' →  Γ ⊢ condElse e t f ⇒ Γ
+    while    : ∀ {s}   → Γ ⊢ e ∶ bool →  ([] ∷ Γ) ⊢ s ⇒ Γ' →                        Γ ⊢ while e s ⇒ Γ
+    for      : ∀ {t e s} id →  Γ ⊢ e ∶ array t  →  ([ id , t ] ∷ Γ) ⊢ s ⇒ Γ'  →  Γ ⊢ for t id e s ⇒ Γ
 
 
 -- Witness of return statments
@@ -150,13 +153,13 @@ module Return {Σ : SymbolTab} {χ : TypeTab} where
       s s1 s2 : Stmt
       ss      : List Stmt
 
-      s' s1' s2' : _⊢_⇒_  T Γ s Δ
-      ss' : _⊢_⇒⇒_ T Γ ss Δ
+      s' s1' s2' : _⊢_⇒_  T Γ s Γ'
+      ss' : _⊢_⇒⇒_ T Γ ss Γ'
 
       e' : Γ ⊢ e ∶ T
 
-  data Returns' {Γ : Ctx} : ∀ {  T} → (_⊢_⇒_  T Γ s   Δ) → Set
-  data Returns            : ∀ {Γ T} → (_⊢_⇒⇒_ T Γ ss  Δ) → Set where
+  data Returns' {Γ : Ctx} : ∀ {  T} → (_⊢_⇒_  T Γ s  Γ') → Set
+  data Returns            : ∀ {Γ T} → (_⊢_⇒⇒_ T Γ ss Γ') → Set where
     here  : Returns' s' → Returns (s' ∷ ss')
     there : Returns ss' → Returns (s' ∷ ss')
     vEnd  : Returns {Γ = Δ ∷ []} {T = void} []

@@ -17,7 +17,7 @@ open import Function using (_∘_; const)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
-open import TypedSyntax hiding (Γ; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx)
+open import TypedSyntax hiding (Γ; Γ'; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx)
 
 
 -- Translating from WellTyped to TypedSyntax
@@ -37,13 +37,19 @@ dropAllId' = map proj₂
 dropAllId : Ctx → newCtx
 dropAllId = map dropAllId'
 
-simplifyLookup' : (id , t) ∈ Δ → t ∈ (dropAllId' Δ)
-simplifyLookup' (here refl) = here refl
-simplifyLookup' (there x) = there (simplifyLookup' x)
+module _ where
+  private
+    variable
+      P : A → Set
+      Q : B → Set
+      f : A → B
+
+  anyMap : (∀ {x} → P x → Q (f x)) → Any P xs → Any Q (map f xs)
+  anyMap F (here x)   = here (F x)
+  anyMap F (there xs) = there (anyMap F xs)
 
 simplifyLookup : (id , t) ∈' Γ → t ∈' (dropAllId Γ)
-simplifyLookup (here px) = here (simplifyLookup' px)
-simplifyLookup (there x) = there (simplifyLookup x)
+simplifyLookup = anyMap (anyMap λ {refl → refl})
 
 zero : Num T → toSet T
 zero NumInt    = Int.0ℤ
@@ -97,19 +103,19 @@ defInit NonVoidBool = EValue Bool.false
 defInit (NonVoidArray  _) = EArray (nType (EValue Int.0ℤ))
 defInit (NonVoidStruct _) = EValue 0
 
-toDecls : ∀ {is t} → NonVoid χ t → DeclP t (Δ ∷ Γ) is Δ' → Stms T (dropAllId ((Δ' ++r Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
-toDecls n  noDecl          ss = ss
-toDecls n (noInit id   ds) ss = SDecl _ (defInit n) ∷ toDecls n ds ss
-toDecls n (init   id e ds) ss = SDecl _ (toExp e)   ∷ toDecls n ds ss
+toDecls : ∀ {is t} → NonVoid χ t → Star' (DeclP t) Γ is Γ' → Stms T (dropAllId Γ') → Stms T (dropAllId Γ)
+toDecls n  []                ss = ss
+toDecls n (noInit id   ∷ ds) ss = SDecl _ (defInit n) ∷ toDecls n ds ss
+toDecls n (init   id e ∷ ds) ss = SDecl _ (toExp e)   ∷ toDecls n ds ss
 
 
-toStms   : ∀ {ss} → _⊢_⇒⇒_ T (Δ ∷ Γ) ss Δ'                                      → Stms T (dropAllId (Δ ∷ Γ))
-_SCons'_ : ∀ {s}  → _⊢_⇒_  T (Δ ∷ Γ) s  Δ' → Stms T (dropAllId ((Δ' ++ Δ) ∷ Γ)) → Stms T (dropAllId (Δ ∷ Γ))
-toStms (x ∷ ss) = x SCons' (toStms ss)
-toStms {T = void} {Γ = []} [] = SReturn vRet ∷ []
-toStms {_}        {_}      [] = []
+toStms   : ∀ {ss} → _⊢_⇒⇒_ T Γ ss Γ'                         → Stms T (dropAllId Γ)
+_SCons'_ : ∀ {s}  → _⊢_⇒_  T Γ s  Γ' → Stms T (dropAllId Γ') → Stms T (dropAllId Γ)
+toStms (x ∷ ss)                  = x SCons' (toStms ss)
+toStms {T = void} {Γ = _ ∷ _} [] = SReturn vRet ∷ []
+toStms {_}        {_}         [] = []
 
-_SCons'_ {Δ = Δ} (decl {Δ' = Δ'} n is) ss rewrite sym (ʳ++-defn Δ' {Δ}) = toDecls n is ss
+decl n is      SCons' ss = toDecls n is ss
 empty          SCons' ss = ss
 bStmt x        SCons' ss = SBlock (toStms x) ∷ ss
 ass id x e     SCons' ss = SAss (simplifyLookup x) (toExp e) ∷ ss
