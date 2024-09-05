@@ -11,7 +11,7 @@ open import Relation.Nullary.Decidable hiding (map)
 open import Relation.Nullary.Reflects
 
 open import Data.Sum.Base public using (_⊎_ ; inj₁ ; inj₂)
-open import Data.Product  public using (_×_ ; _,_)
+open import Data.Product  public using (_×_ ; _,_; ∃)
 open import Data.List     public using (List; []; _∷_)
 open import Data.Maybe    public using (Maybe; just; nothing)
 
@@ -24,8 +24,11 @@ open Eq; open Ord; open Num; open NonVoid; open Basic
 open import WellTyped
 
 
-data InList {A : Set} (γ : List (Id × A)) (x : Id) : Set where
-  inList : (a : A) → (x , a) ∈ γ → InList γ x
+InList : List (Id × A) → Id → Set
+InList γ x = ∃ λ a → (x , a) ∈ γ
+
+InScope : List (List (Id × A)) → Id → Set
+InScope Γ x = ∃ λ t → (x , t) ∈' Γ
 
 data InTypeTab (χ : TypeTab) (c : Id) : Set where
   inList : (n : Id) → (fs : List (Id × Type)) → (n , c , fs) ∈ χ → InTypeTab χ c
@@ -38,15 +41,12 @@ _eqId_  (ident x) (ident y) with x ≟ y
 ... | .true  because ofʸ refl = inj₂ refl
 ... | .false because ofⁿ p    = inj₁ (λ {refl → p refl})
 
-data InScope (Γ : Ctx) (x : Id) : Set where
-  inScope : (t : Type) → (x , t) ∈' Γ → InScope Γ x
-
 lookup : (x : Id) → (xs : List (Id × A)) → Maybe (InList xs x)
 lookup id [] = nothing
 lookup id ((x' , a) ∷ xs) with x' eqId id
-... | inj₂ refl  = just (inList a (here refl))
+... | inj₂ refl  = just (a , here refl)
 ... | inj₁ _ with lookup id xs
-...         | just (inList t x₁) = just (inList t (there x₁))
+...         | just (t , x₁) = just (t , there x₁)
 ...         | nothing            = nothing
 
 lookupTCM : (x : Id) → (xs : List (Id × A)) → TCM (InList xs x)
@@ -65,9 +65,9 @@ lookupConstructor x ((n , c , fs) ∷ xss) with x eqId c
 lookupCtx : (x : Id) → (Γ : Ctx) → TCM (InScope Γ x)
 lookupCtx x []   = error ("Var " ++ showId x ++ " is not in scope")
 lookupCtx x (xs ∷ xss) with lookup x xs
-... | just (inList t x₁) = pure (inScope t (here x₁))
-... | nothing            = do inScope t p ← lookupCtx x xss
-                              pure (inScope t (there p))
+... | just (t , x₁) = pure (t , here x₁)
+... | nothing            = do t , p ← lookupCtx x xss
+                              pure (t , there p)
 
 
 checkAll : {P : A → Set} → ((a : A) → TCM (P a)) → (as : List A) → TCM (All P as)
@@ -115,7 +115,7 @@ ifNonVoid χ bool       = pure NonVoidBool
 ifNonVoid χ int        = pure NonVoidInt
 ifNonVoid χ doub       = pure NonVoidDoub
 ifNonVoid χ (array t)  = NonVoidArray <$> ifNonVoid χ t
-ifNonVoid χ (structT n) = do inList _ p ← lookupTCM n χ
+ifNonVoid χ (structT n) = do _ , p ← lookupTCM n χ
                              pure (NonVoidStruct p)
 ifNonVoid χ void       = error "Void is not-nonVoid"
 ifNonVoid χ (fun T ts) = error "Function is not-nonVoid"
@@ -125,7 +125,7 @@ ifBasic χ bool       = pure BasicBool
 ifBasic χ int        = pure BasicInt
 ifBasic χ doub       = pure BasicDoub
 ifBasic χ (array _)  = error "Array is not a Basic Type"
-ifBasic χ (structT n)  = do inList _ p ← lookupTCM n χ
+ifBasic χ (structT n)  = do _ , p ← lookupTCM n χ
                             pure (BasicStruct p)
 ifBasic χ void       = error "Void is not a Basic Type"
 ifBasic χ (fun T ts) = error "Function is not a Basic Type"

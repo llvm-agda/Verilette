@@ -36,7 +36,7 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
 
 mergeΧχ : List (Id × Id) → List (Id × List (Id × Type)) → TCM TypeTab
 mergeΧχ [] χ            = pure []
-mergeΧχ ((c , n) ∷ Χ) χ = do inList fs p ← lookupTCM c χ
+mergeΧχ ((c , n) ∷ Χ) χ = do fs , p ← lookupTCM c χ
                              rest ← mergeΧχ Χ χ
                              pure ((n , c , fs) ∷ rest)
 
@@ -103,7 +103,7 @@ typeCheck b (program defs) = do
     let Σ , Χ , χ = getTopDef defs
     let Σ' = b +++ Σ
     Ωχ ← mergeΧχ Χ χ
-    inList ([] , int) p ← lookupTCM (ident "main") Σ'
+    ([] , int) , p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
     unique ← checkUnique Σ'
     defs' ← checkFuns Ωχ Σ' Σ defs

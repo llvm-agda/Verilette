@@ -49,14 +49,14 @@ module CheckExp (Γ : Ctx) where
                      refl ← t1 =?= t2
                      pure ((x' , y') ::: t1)
 
-  infer (eVar x)  = do inScope t p ← lookupCtx x Γ
+  infer (eVar x)  = do t , p ← lookupCtx x Γ
                        pure (eVar x p ::: t)
   infer (eLitInt x ) = pure (eLitInt  x ::: int)
   infer (eLitDoub x) = pure (eLitDoub x ::: doub)
   infer (eLitTrue  ) = pure (eLitTrue   ::: bool)
   infer (eLitFalse ) = pure (eLitFalse  ::: bool)
   infer (eString x)  = error "Encountered string outside of printString"
-  infer (eNull (eVar x)) = do inList t p ← lookupTCM x χ
+  infer (eNull (eVar x)) = do t , p ← lookupTCM x χ
                               pure (eNull p ::: structT x)
   infer (eNull _) = error "Error; eNull should take a struct type as argument"
   infer (eIndex e i) = do i' ← checkExp int i
@@ -80,8 +80,8 @@ module CheckExp (Γ : Ctx) where
   infer (eAttrib e (ident x₁)) = error $ "Found non-legal attribute: " ++s x₁
   infer (eDeRef e x) = do e' ::: structT n ← infer e
                              where e' ::: _ → error "Tried to deref non-struct"
-                          inList ( c , fs ) p ← lookupTCM n χ
-                          inList t p' ← lookupTCM x fs
+                          ( c , fs ) , p ← lookupTCM n χ
+                          t , p' ← lookupTCM x fs
                           pure (eDeRef e' p p' ::: t)
   infer (neg e) = do e' ::: t ← infer e
                      p ← ifNum t
@@ -114,7 +114,7 @@ module CheckExp (Γ : Ctx) where
                             where _ ::: t → error "non-bool expression found in or"
                         pure (eOr  x' y' ::: bool)
   infer (eApp (ident "printString") (eString s ∷ [])) = pure (ePrintString s ::: void)
-  infer (eApp x es) = do inList (ts , t) p ← lookupTCM x Σ
+  infer (eApp x es) = do (ts , t) , p ← lookupTCM x Σ
                          es' ::: ts' ← inferList es
                          refl ← eqLists ts ts'
                          pure (eApp x p es' ::: t)
@@ -142,7 +142,7 @@ module CheckStatements (T : Type) where
   check Γ (bStmt (block ss)) = do _ , ss' ← checkStms ([] ∷ Γ) ss
                                   pure ([] , bStmt ss')
 
-  check Γ (ass (eVar x) e) = do inScope t p ← lookupCtx x Γ
+  check Γ (ass (eVar x) e) = do t , p ← lookupCtx x Γ
                                 e' ← checkExp Γ t e
                                 pure ([] , ass x p e')
   check Γ (ass (eIndex arr i) x) = do i'     ← checkExp Γ int i
@@ -151,15 +151,15 @@ module CheckStatements (T : Type) where
                                       pure ([] , assIdx arr' i' x')
   check Γ (ass (eDeRef e f) x) = do e' ::: structT t ← infer Γ e
                                        where e' ::: _ → error "Can not defer field from non-struct type"
-                                    inList (c , fs) p ← lookupTCM t χ
-                                    inList t' p' ← lookupTCM f fs
+                                    (c , fs) , p ← lookupTCM t χ
+                                    t' , p' ← lookupTCM f fs
                                     x' ← checkExp Γ t' x
                                     pure ([] , assPtr e' p p' x')
   check Γ (ass _ e) = error "Could not assign to expression"
-  check Γ (incr x) = do inScope int p ← lookupCtx x Γ
+  check Γ (incr x) = do int , p ← lookupCtx x Γ
                           where _ → error "Can not increment non-int type"
                         pure ([] , incr x p)
-  check Γ (decr x) = do inScope int p ← lookupCtx x Γ
+  check Γ (decr x) = do int , p ← lookupCtx x Γ
                           where _ → error "Can not decrement non-int type"
                         pure ([] , decr x p)
   check Γ (ret e) = do e' ← checkExp Γ T e

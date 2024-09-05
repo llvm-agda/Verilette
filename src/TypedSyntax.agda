@@ -120,9 +120,9 @@ data Basic (χ : TypeTab) : (T : Type) → Set where
   BasicStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → Basic χ (structT n)
 
 
-data Return (P : (Type → Set)) : Type -> Set where
+data Return (P : Type → Set) : Type → Set where
   vRet : Return P void
-  Ret : P t -> Return P t
+  Ret : P t → Return P t
 
 -- Nonempty-list that iterate w on the index for each item
 data WFNew {T : Set} (E : Set) (w : T → T) : T → Set where
