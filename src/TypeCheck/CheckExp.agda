@@ -1,4 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
 open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_) renaming (_++_ to _++s_)

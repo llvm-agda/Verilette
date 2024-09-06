@@ -203,9 +203,7 @@ data returnStms where
 
 record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where
   field
-    params : Params Ts
-
-  field
+    params    : Params Ts
     body      : Stms Σ χ T (Ts ∷ [])
     voidparam : All (_≢ void) Ts
     return    : returnStms body

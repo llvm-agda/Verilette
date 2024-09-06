@@ -57,44 +57,43 @@ checkUnique ((id , x) ∷ xs) = _∷_ <$> id notIn xs <*> checkUnique xs
 
 open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 
+-- Σ contains all function signatures
+module _ (χ : TypeTab) (Σ : SymbolTab) where
 
-checkFun : (Σ : SymbolTab) (χ : TypeTab) (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
-checkFun Σ χ t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
-checkFun Σ χ t ts (struct x fs)   = error "struct  is not a function"
-checkFun Σ χ t ts (fnDef t' x as (block b)) with
-  params ← map (λ {(argument t id) → id , t}) as = do
-    refl ← t =?= t'
-    refl ← eqLists ts (dropAllId' params)
-    unique  ← checkUnique params
-    _ , ss' ← checkStms (params ∷ []) b
-    returns ← CH.checkReturn ss'
-    noVoid  ← checkAll (_=/= void) ts
-    pure (record { params    = formatParams params
-                 ; body      = toStms ss'
-                 ; voidparam = noVoid
-                 ; return    = returnProof returns
-                 })
-  where import TypeCheck.CheckExp Σ χ as CH
-        open CH.CheckStatements t
-        open import Translate Σ χ using (toStms; dropAllId')
+  open import TypeCheck.CheckExp Σ χ; open CheckStatements
+  open import Translate Σ χ using (toStms; dropAllId')
+  import TypeCheck.Proofs as TCP; open TCP.ReturnsProof  Σ χ using (returnProof)
 
-        import TypeCheck.Proofs as TCP
-        open TCP.ReturnsProof  Σ χ using (returnProof)
+  checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
+  checkFun t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
+  checkFun t ts (struct x fs)   = error "struct  is not a function"
+  checkFun t ts (fnDef t' x as (block b)) with
+    params ← map (λ {(argument t id) → id , t}) as = do
+      refl ← t =?= t'
+      refl ← eqLists ts (dropAllId' params)
+      unique  ← checkUnique params
+      _ , ss' ← checkStms t (params ∷ []) b
+      returns ← checkReturn ss'
+      noVoid  ← checkAll (_=/= void) ts
+      pure (record { params    = formatParams params
+                   ; body      = toStms ss'
+                   ; voidparam = noVoid
+                   ; return    = returnProof returns
+                   })
+    where formatParams : (Δ : List (Id × Type)) → Params (dropAllId' Δ)
+          formatParams [] = []
+          formatParams ((id , _) ∷ Δ) = id ∷ formatParams Δ
 
-        formatParams : (Δ : List (Id × Type)) → Params (dropAllId' Δ)
-        formatParams [] = []
-        formatParams ((id , _) ∷ Δ) = id ∷ formatParams Δ
 
-checkFuns : (χ : TypeTab) (Σ' Σ  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ' Σ)
-checkFuns χ Σ' [] [] = pure []
-checkFuns χ Σ' [] (x ∷ def) = error "More functions than in SyTab"
-checkFuns χ Σ' (x ∷ Σ) []   = error "More entries in symtab than defs"
-checkFuns χ Σ' ((id , (ts , t)) ∷ Σ) (def ∷ defs) with def
-... | typeDef x₁ x₂ = checkFuns χ Σ' ((id , ts , t) ∷ Σ) defs
-... | struct x fs   = checkFuns χ Σ' ((id , ts , t) ∷ Σ) defs
-... | def@(fnDef t₁ x as b) = do def'  ← checkFun  Σ' χ t ts def
-                                 defs' ← checkFuns χ Σ' Σ    defs
-                                 pure (def' ∷ defs')
+  -- Σ' contains all the function signatures that should be checked
+  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ Σ')
+  checkFuns []      []      = pure []
+  checkFuns []      (_ ∷ _) = error "More functions than in SyTab"
+  checkFuns (_ ∷ _) []      = error "More entries in symtab than defs"
+  checkFuns ((id , (ts , t)) ∷ Σ') (def ∷ defs) with def
+  ... | typeDef _ _ = checkFuns ((id , ts , t) ∷ Σ') defs
+  ... | struct _ _  = checkFuns ((id , ts , t) ∷ Σ') defs
+  ... | def@(fnDef t' x as b) = _∷_ <$> checkFun  t ts def <*> checkFuns Σ' defs
 
 
 

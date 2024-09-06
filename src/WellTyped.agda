@@ -1,5 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-
 open import Agda.Builtin.Equality using (refl; _≡_)
 open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
@@ -95,7 +93,6 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
 
     -- eString is not wellTyped on its own
     ePrintString : ∀ s → Γ ⊢ eApp (ident "printString") (eString s ∷ []) ∶ void
-
 
 
 -- Reflexiv Transitive closure over list, i.e. a chain
