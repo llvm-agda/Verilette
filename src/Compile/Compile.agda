@@ -1,6 +1,6 @@
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
-open import Data.List.Relation.Unary.All using (All); open All
+open import Data.List.Relation.Unary.All using (All; lookup); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star) renaming (ε to []; _◅_ to _∷_)
 
@@ -118,22 +118,13 @@ instance
 runCM : CM Γ A → CMState Γ → (CMState Γ × A)
 runCM m s = runState m s
 
-lookupPtr' : BlockList Δ → t ∈ Δ → Operand (llvmType t *)
-lookupPtr' (x ∷ b) (here refl) = x
-lookupPtr' (_ ∷ b) (there x)   = lookupPtr' b x
-
 lookupPtr : CtxList Γ → t ∈' Γ → Operand (llvmType t *)
-lookupPtr (x ∷ xs) (here p)  = lookupPtr' x p
+lookupPtr (x ∷ xs) (here p)  = lookup x p
 lookupPtr (x ∷ xs) (there s) = lookupPtr xs s
 
 getPtr : t ∈' Γ → CM Γ (Operand (llvmType t *))
 getPtr p = do ctx ← ctxList <$> get
               pure (lookupPtr ctx p)
-
--- not sure if functions are Ptr
-lookupFun : ∀ {Σ} → SymTab Σ → (id , ts , t) ∈ Σ → Operand (fun (llvmType t) (llvmTypes ts))
-lookupFun (x ∷ _)  (here refl) = x
-lookupFun (_ ∷ xs) (there p)   = lookupFun xs p
 
 emit : Instruction T → CM Γ ⊤
 emit x = modify (λ s → record s {block = x ∷ block s })
@@ -313,7 +304,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
 
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
-  compileExp (EAPP id es p) = emitTmp =<< call (lookupFun σ p) <$> mapCompileExp es
+  compileExp (EAPP id es p) = emitTmp =<< call (lookup σ p) <$> mapCompileExp es
     where mapCompileExp : All (Exp Σ χ Γ) ts → CM Γ (All Operand (llvmTypes ts))
           mapCompileExp [] = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs

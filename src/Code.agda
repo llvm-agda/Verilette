@@ -56,7 +56,7 @@ pattern i8  = lint 7
 pattern i32 = lint 31
 
 FunType : Set
-FunType = ((List Type) × Type)
+FunType = List Type × Type
 
 SymbolTab : Set
 SymbolTab = List (Id × FunType)
