@@ -25,7 +25,7 @@ variable
 
 
 FunType : Set
-FunType = ((List Type) × Type)
+FunType = List Type × Type
 
 SymbolTab : Set
 SymbolTab = List (Id × FunType)

@@ -27,6 +27,8 @@ open import Code hiding (TypeTab)
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import TypedSyntax hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
 
+open import TypeCheck.Util using (anyMap)
+
 module Compile.Compile where
 
 open Typed
@@ -298,11 +300,8 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
 
   compileExp (EDeRef x p p') = do x' ← compileExp x
                                   s ← lookupNamed x' p
-                                  ptr ← emitTmp (getElemPtr s 0 (struct (reShapeP' p') ∷ []))
+                                  ptr ← emitTmp (getElemPtr s 0 (struct (anyMap (λ {refl → refl}) p') ∷ []))
                                   emitTmp (load ptr)
-      where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
-            reShapeP' (here refl) = here refl
-            reShapeP' (there x) = there (reShapeP' x)
   compileExp (ELength x)  = do arr ← compileExp x
                                len ← emitTmp (getElemPtr arr 0 ((struct (here refl)) ∷ [])) -- index 0
                                emitTmp (load len)
@@ -340,12 +339,9 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileStms (SAssPtr e p p' x ∷ ss) = do e' ← compileExp e
                                            x' ← compileExp x
                                            s ← lookupNamed e' p
-                                           ptr ← emitTmp (getElemPtr s 0 ((struct (reShapeP' p')) ∷ []))
+                                           ptr ← emitTmp (getElemPtr s 0 ((struct (anyMap (λ {refl → refl}) p')) ∷ []))
                                            emit (store x' ptr)
                                            compileStms ss
-      where reShapeP' : ∀ {t n} {fs : List (Id × OldType)} → (n , t) ∈ fs → llvmType t ∈ map (llvmType ∘ proj₂) fs
-            reShapeP' (here refl) = here refl
-            reShapeP' (there x) = there (reShapeP' x)
   compileStms (SFor arr s ∷ ss) = do arr' ← compileExp arr
                                      forArray arr' λ v* → do
                                            v ← emitTmp (load v*)

@@ -12,7 +12,7 @@ open import Relation.Nullary.Reflects
 
 open import Data.Sum.Base public using (_⊎_ ; inj₁ ; inj₂)
 open import Data.Product  public using (_×_ ; _,_; ∃)
-open import Data.List     public using (List; []; _∷_)
+open import Data.List     public using (List; []; _∷_; map)
 open import Data.Maybe    public using (Maybe; just; nothing)
 
 open import Data.List.Relation.Unary.Any using (Any); open Any
@@ -22,6 +22,22 @@ open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
 open import TypedSyntax using (_∈_; _∈'_; _∉_; Eq; Ord; Num; NonVoid; Basic; TypeTab; A)
 open Eq; open Ord; open Num; open NonVoid; open Basic
 open import WellTyped
+
+
+-- This should be move to a more general location (might already be defined in std-lib somewhere)
+module _ where
+  private
+    variable
+      B : Set
+      P : A → Set
+      Q : B → Set
+      f : A → B
+      xs : List A
+
+  -- General case of  x ∈ xs → f x ∈ map f xs
+  anyMap : (∀ {x} → P x → Q (f x)) → Any P xs → Any Q (map f xs)
+  anyMap F (here x)   = here (F x)
+  anyMap F (there xs) = there (anyMap F xs)
 
 
 InList : List (Id × A) → Id → Set

@@ -1,5 +1,3 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-
 open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
@@ -18,6 +16,7 @@ open import Function using (_∘_; const)
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
 open import TypedSyntax hiding (Γ; Γ'; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx)
+open import TypeCheck.Util using (anyMap)
 
 
 -- Translating from WellTyped to TypedSyntax
@@ -36,17 +35,6 @@ dropAllId' = map proj₂
 
 dropAllId : Ctx → newCtx
 dropAllId = map dropAllId'
-
-module _ where
-  private
-    variable
-      P : A → Set
-      Q : B → Set
-      f : A → B
-
-  anyMap : (∀ {x} → P x → Q (f x)) → Any P xs → Any Q (map f xs)
-  anyMap F (here x)   = here (F x)
-  anyMap F (there xs) = there (anyMap F xs)
 
 simplifyLookup : (id , t) ∈' Γ → t ∈' (dropAllId Γ)
 simplifyLookup = anyMap (anyMap λ {refl → refl})
