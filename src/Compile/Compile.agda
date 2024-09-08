@@ -31,9 +31,6 @@ open import TypeCheck.Util using (anyMap)
 
 module Compile.Compile where
 
-open Typed
-open Valid
-
 
 null : ∀ {t} → Operand (t *)
 null = const 0
@@ -68,7 +65,7 @@ CtxList : Ctx → Set
 CtxList = All BlockList
 
 SymTab : OldSymbolTab → Set
-SymTab = All (λ (id , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts)))
+SymTab = All (λ (_ , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts)))
 
 record GlobalState : Set where
   constructor gS
@@ -178,16 +175,16 @@ llvmSymHom (x ∷ Σ') Σ rewrite llvmSymHom Σ' Σ = refl
 
 
 fromNum : Num t → FirstClass (llvmType t)
-fromNum NumInt    = lint 31
+fromNum NumInt    = i32
 fromNum NumDouble = float
 
 fromOrd : Ord t → FirstClass (llvmType t)
-fromOrd OrdInt    = lint 31
+fromOrd OrdInt    = i32
 fromOrd OrdDouble = float
 
 fromEq : Eq t → FirstClass (llvmType t)
-fromEq EqInt    = lint 31
-fromEq EqBool   = lint 0
+fromEq EqInt    = i32
+fromEq EqBool   = i1
 fromEq EqDouble = float
 fromEq (EqStruct {n}) = ptrFC (named n)
 
@@ -239,7 +236,10 @@ forArray arr f = do lenPtr ← emitTmp (getElemPtr arr 0 (struct (here refl) ∷
 -- Compilation using a given SymTab σ
 module _ (σ : SymTab Σ) (χ : TypeTab) where
 
-  compileExp : (e : Exp Σ χ Γ t) → CM Γ (Operand (llvmType t))
+  open Typed Σ χ
+  open Valid Σ χ
+
+  compileExp : (e : Exp Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
   compileExp (EId x)           = emitTmp =<< load <$> getPtr x
   compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
@@ -272,7 +272,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                iPtr ← emitTmp (getElemPtr arrPtr 0 (struct (there (here refl)) ∷ array i' ∷ [])) -- index 1
                                emitTmp (load iPtr)
   compileExp (EArray new) = callocNew =<< compileWFNew new
-    where compileWFNew : WFNew (Exp Σ χ Γ OldType.int) OldType.array t → CM Γ (WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) (llvmType t))
+    where compileWFNew : WFNew (Exp Γ OldType.int) OldType.array t → CM Γ (WFNew (Operand i32) (λ t → struct (i32 ∷ [ 0 × t ] ∷ []) *) (llvmType t))
           compileWFNew (nType  x)    = nType  <$> compileExp x
           compileWFNew (nArray x xs) = nArray <$> compileExp x <*> compileWFNew xs
 
@@ -305,15 +305,15 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP id es p) = emitTmp =<< call (lookup σ p) <$> mapCompileExp es
-    where mapCompileExp : All (Exp Σ χ Γ) ts → CM Γ (All Operand (llvmTypes ts))
-          mapCompileExp [] = pure []
+    where mapCompileExp : All (Exp Γ) ts → CM Γ (All Operand (llvmTypes ts))
+          mapCompileExp []       = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
 
 
 
   -- compileStms returns true if it encountered a return
   -- This is used to return early
-  compileStms  : (ss : Stms  Σ χ t Γ) → CM Γ Bool
+  compileStms  : (ss : Stms  t Γ) → CM Γ Bool
   compileStms [] = pure false
   compileStms (SExp x ∷ ss) = do compileExp x
                                  compileStms ss
