@@ -16,7 +16,7 @@ open import TypeCheck.Monad
 open import TypeCheck.Util
 open import Javalette.AST
 
-open import TypedSyntax as TS using (SymbolTab; TypeTab;
+open import TypedSyntax as TS using (TypeTab;
                                      _∈'_; _∈_; _∉_;
                                      Num; Eq; Ord; Return; toSet; NonVoid;
                                      T; Ts)

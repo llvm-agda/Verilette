@@ -7,7 +7,8 @@ import Data.Nat     as Nat
 
 open import Data.Product using (_×_; _,_)
 open import Data.List using (List; _∷_ ; [] ; zip ; _++_; reverse; [_])
-open import Data.List.Relation.Unary.All using (All); open All
+open import Data.List.Relation.Unary.All using (All) renaming (map to allMap); open All
+open import Data.List.Relation.Unary.All.Properties using (++⁺)
 open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import Data.Empty using (⊥)
@@ -28,7 +29,7 @@ FunType : Set
 FunType = List Type × Type
 
 SymbolTab : Set
-SymbolTab = List (Id × FunType)
+SymbolTab = List FunType
 
 TypeTab : Set
 TypeTab = List (Id × (Id × List (Id × Type)))
@@ -41,8 +42,8 @@ Block = List Type
 Ctx : Set
 Ctx = List Block
 
-Params : ∀ {A} → List A → Set
-Params = All (λ _ → Id)
+Named : ∀ {A} → List A → Set
+Named = All (λ _ → Id)
 
 variable
   T t : Type
@@ -137,7 +138,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
   data Exp (Γ : Ctx) : Type → Set where
     EValue  : toSet T  → Exp Γ T
     EId     : T ∈' Γ → Exp Γ T
-    EAPP    : (id : Id) → All (Exp Γ) ts → (id , (ts , T)) ∈ Σ → Exp Γ T
+    EAPP    : (ts , T) ∈ Σ → All (Exp Γ) ts → Exp Γ T
     EArith  : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
     EMod    : Exp Γ int → Exp Γ int → Exp Γ int
     EOrd    : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
@@ -203,7 +204,8 @@ data returnStms where
 
 record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where
   field
-    params    : Params Ts
+    funId     : Id
+    params    : Named Ts
     body      : Stms Σ χ T (Ts ∷ [])
     voidparam : All (_≢ void) Ts
     return    : returnStms body
@@ -211,16 +213,20 @@ record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  wh
 
 -- FunList contains a function parameterized by Σ' for each element in Σ.
 FunList : (χ : TypeTab) → (Σ' Σ : SymbolTab) → Set
-FunList χ Σ' = All (λ (_ , (ts , t)) → Def Σ' χ ts t)
+FunList χ Σ' = All (λ (ts , t) → Def Σ' χ ts t)
 
 record Program : Set where
   field
-    BuiltIn : SymbolTab
-    Defs    : SymbolTab
-    χ       : TypeTab
+    {BuiltIn Defs} : SymbolTab
+    χ            : TypeTab
+    NamedBuiltIn : Named BuiltIn
+
   Σ' = BuiltIn ++ Defs
 
   field
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     hasDefs    : FunList χ Σ' Defs
-    uniqueDefs : Unique Σ'
+    -- uniqueDefs : Unique Σ'
+
+  NamedFuns : Named Σ'
+  NamedFuns = ++⁺ NamedBuiltIn (allMap Def.funId hasDefs)

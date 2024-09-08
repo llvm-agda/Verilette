@@ -5,12 +5,13 @@ open import Relation.Nullary.Negation using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≢_; ≡-≟-identity; sym)
 open import Data.String using (_≟_)
 
-open import Data.List using (List; _∷_; []; _++_) renaming (_ʳ++_ to _++r_)
+open import Data.List using (List; _∷_; []; _++_)
 open import Data.List.Properties using (ʳ++-defn)
+open import Data.Product using (_×_; _,_; proj₂)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import TypeCheck.Util
-open import TypedSyntax as TS using (SymbolTab; TypeTab; Num; Ord; Eq)
+open import TypedSyntax as TS using (TypeTab; Num; Ord; Eq)
 
 open import WellTyped
 open import TypeCheck.CheckExp
@@ -96,8 +97,8 @@ module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
   open WellTyped.Declarations Σ χ
   open WellTyped.Return
 
-  open TS.Valid Σ χ
-  open TS.Typed Σ χ
+  open TS.Valid (map proj₂ Σ) χ
+  open TS.Typed (map proj₂ Σ) χ
   open TS.returnStm
   open TS.returnStms
 

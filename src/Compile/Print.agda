@@ -40,6 +40,8 @@ pTypeList [] = ""
 pTypeList (x ∷ []) = pType x
 pTypeList (y ∷ x ∷ xs) = pType y ++ ", " ++ pTypeList (x ∷ xs)
 
+IdToString : Id → String
+IdToString (ident id) = id
 
 pOperand : Operand T → String
 pOperand {T} (const x) with T
@@ -120,9 +122,9 @@ pCode (label (ident l) ∷ xs) = pCode xs ++ l ++ ": \n"
 pCode (x ∷ xs)      = pCode xs ++ "  " ++                        pInst x ++ "\n"
 pCode (o := x ∷ xs) = pCode xs ++ "  " ++ pOperand o ++ " = " ++ pInst x ++ "\n"
 
-pFun : {Σ : SymbolTab} → Id → FunDef Σ Ts T → String
-pFun {T = T} (ident id) def =
-     let header = unwords $ "define" ∷ pType T ∷ ("@" ++ id) ∷ pParams ∷ "{" ∷ []
+pFun : {Σ : SymbolTab} → FunDef Σ Ts T → String
+pFun {T = T} def =
+     let header = unwords $ "define" ∷ pType T ∷ ("@" ++ IdToString funId) ∷ pParams ∷ "{" ∷ []
      in intersperse "\n" $ header ∷ pCode body ∷ "}" ∷ []
   where open FunDef def
         pParams = "(" ++ intersperse ", " (reduce (λ {t} → λ {(ident i) → pType t ++ " %" ++ i}) params) ++ ")"
@@ -138,14 +140,14 @@ pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pType
                        "@" ++ i ++ " = internal constant [ " ++ showℕ (length s) ++ " x i8 ] c\"" ++ s ++ "\""}) Strings
 
         pBuiltIn : List String
-        pBuiltIn = map (λ
-                     { (ident "printString" , _) → "declare void @printString(i8*)" -- since we use a "hack" for printString
-                     ; (ident i , ts , t) →
-                            "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) BuiltIn
+        pBuiltIn = reduce (λ
+                     { (ident "printString") → "declare void @printString(i8*)" -- since we use a "hack" for printString
+                     ; {ts , t} (ident i) →
+                            "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) NamedBuiltIn
 
         pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
         pDefs []                 = []
-        pDefs (_∷_ {i , _} x xs) = pFun i x ∷ pDefs xs
+        pDefs (x ∷ xs) = pFun x ∷ pDefs xs
 
         pTypes : List String
         pTypes = map (λ { (ident x , ts) → "%" ++ x ++ " = type { " ++ intersperse ", " (map pType ts) ++ "}"  })  χ

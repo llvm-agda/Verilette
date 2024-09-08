@@ -16,12 +16,14 @@ open import Data.Maybe.Base using (Maybe; nothing; just)
 open import Data.Sum.Effectful.Left renaming (monad to monadSum)
 open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
 open import Data.List using (List; _∷_ ; []; map; zip; unzip; reverse) renaming (_++_ to _+++_)
+open import Data.List.Properties using (map-++)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Function using (case_of_)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
-open import TypedSyntax renaming (Program to TypedProgram)
+open import TypedSyntax hiding (SymbolTab) renaming (Program to TypedProgram)
+open import WellTyped using (SymbolTab)
 open import TypeCheck.Monad
 open import TypeCheck.Util
 
@@ -64,10 +66,10 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
   open import Translate Σ χ using (toStms; dropAllId')
   import TypeCheck.Proofs as TCP; open TCP.ReturnsProof  Σ χ using (returnProof)
 
-  checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def Σ χ ts t)
+  checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def (map snd Σ) χ ts t)
   checkFun t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
   checkFun t ts (struct x fs)   = error "struct  is not a function"
-  checkFun t ts (fnDef t' x as (block b)) with
+  checkFun t ts (fnDef t' id as (block b)) with
     params ← map (λ {(argument t id) → id , t}) as = do
       refl ← t =?= t'
       refl ← eqLists ts (dropAllId' params)
@@ -75,18 +77,19 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
       _ , ss' ← checkStms t (params ∷ []) b
       returns ← checkReturn ss'
       noVoid  ← checkAll (_=/= void) ts
-      pure (record { params    = formatParams params
+      pure (record { funId     = id
+                   ; params    = formatParams params
                    ; body      = toStms ss'
                    ; voidparam = noVoid
                    ; return    = returnProof returns
                    })
-    where formatParams : (Δ : List (Id × Type)) → Params (dropAllId' Δ)
+    where formatParams : (Δ : List (Id × Type)) → Named (dropAllId' Δ)
           formatParams [] = []
           formatParams ((id , _) ∷ Δ) = id ∷ formatParams Δ
 
 
   -- Σ' contains all the function signatures that should be checked
-  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (FunList χ Σ Σ')
+  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (FunList χ (map snd Σ) (map snd Σ'))
   checkFuns []      []      = pure []
   checkFuns []      (_ ∷ _) = error "More functions than in SyTab"
   checkFuns (_ ∷ _) []      = error "More entries in symtab than defs"
@@ -101,13 +104,20 @@ typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ , Χ , χ = getTopDef defs
     let Σ' = b +++ Σ
+    let refl = map-++ snd b Σ
     Ωχ ← mergeΧχ Χ χ
     ([] , int) , p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
     unique ← checkUnique Σ'
     defs' ← checkFuns Ωχ Σ' Σ defs
-    pure (record { BuiltIn = b
-                 ; Defs    = Σ
+    pure (record { χ       = Ωχ
+                 ; NamedBuiltIn = toNamed b
                  -- ; hasMain    = p
-                 ; hasDefs    = defs'
-                 ; uniqueDefs = unique })
+                 ; hasDefs    = help b Σ defs'
+                 })
+  where toNamed : (xs : List (Id × A)) → Named (map snd xs)
+        toNamed [] = []
+        toNamed ((id , _) ∷ xs) = id ∷ toNamed xs
+
+        help : ∀ {zs χ} → (xs ys : SymbolTab) → FunList χ (map snd (xs +++ ys)) zs → FunList χ (map snd xs +++ map snd ys) zs
+        help xs ys x rewrite map-++ snd xs ys = x

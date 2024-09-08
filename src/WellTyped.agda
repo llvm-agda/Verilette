@@ -16,7 +16,7 @@ open import Data.Empty using (⊥)
 open import Function using (_$_; _∘_; case_of_; case_return_of_; const)
 
 open import Javalette.AST renaming (Ident to Id)
-open import TypedSyntax as TS using (SymbolTab; TypeTab;
+open import TypedSyntax as TS using (TypeTab;
                                     _∈'_; _∈_; _∉_;
                                     Num; Eq; Ord; NonVoid; Basic;
                                     T; Ts)
@@ -31,6 +31,13 @@ Block = List (Id × Type)
 
 Ctx : Set
 Ctx = List Block
+
+
+FunType : Set
+FunType = List Type × Type
+
+SymbolTab : Set
+SymbolTab = List (Id × FunType)
 
 
 variable
@@ -168,18 +175,18 @@ module Return {Σ : SymbolTab} {χ : TypeTab} where
     condElse : Returns' s1' → Returns' s2' → Returns' (condElse e' s1' s2')
 
 
+fromArgs : List Arg → Block
+fromArgs [] = []
+fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
+
 module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
-  open Statements Σ χ
+  open Statements Σ χ T
   open Return {Σ} {χ}
 
-  fromArgs : List Arg → Block
-  fromArgs [] = []
-  fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
+  data ValidFun : TopDef → Set where
+    fnDef : ∀ {id as ss} → (ss' : (fromArgs as ∷ []) ⊢ ss ⇒⇒ Γ')
+                           → Returns ss' →  ValidFun (fnDef T id as (block ss))
 
---  data ValidFun : TopDef → Set where
---    fnDef : ∀ {t id as ss Δ} → WFBlock χ (fromArgs as) → (ss' : (fromArgs as ∷ []) ⊢ ss ⇒⇒ Δ)
---                             → Returns ss' →  ValidFun (fnDef t id as (block ss))
---
 --    typeDef : ∀ {n c : Ident} → ValidFun (typeDef n c)
 --    -- struct  : ∀ {c fs} → WFBlock χ (fromArgs fs) → TopDef (struct c fs)

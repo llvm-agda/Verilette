@@ -1,5 +1,4 @@
-{-# OPTIONS --allow-unsolved-metas #-}
-open import Data.Product using (_×_; _,_; ∃) renaming (proj₁ to fst; proj₂ to snd)
+open import Data.Product using (_×_; _,_; ∃)
 
 open import Data.Nat
 open import Data.String using (String)
@@ -9,12 +8,13 @@ open import Agda.Builtin.Int   using (Int)
 open import Agda.Builtin.Float using (Float)
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_)
-open import Data.List.Relation.Unary.All using (All); open All
+open import Data.List.Relation.Unary.All using (All) renaming (map to allMap); open All
+open import Data.List.Relation.Unary.All.Properties using () renaming (++⁺ to _++⁺_)
 open import Data.List.Relation.Unary.Any using (Any); open Any
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star)
 
 open import Javalette.AST using (RelOp) renaming (Ident to Id)
-open import Data.List using (List; _∷_ ; [] ; zip ; _++_; map)
+open import Data.List using (List; _∷_; []; _++_)
 open import TypedSyntax hiding (toSet; T; Ts; FunType; SymbolTab; TypeTab; *)
 
 open import Data.Empty using (⊥)
@@ -59,7 +59,7 @@ FunType : Set
 FunType = List Type × Type
 
 SymbolTab : Set
-SymbolTab = List (Id × FunType)
+SymbolTab = List FunType
 
 TypeTab : Set
 TypeTab = List (Id × List Type)
@@ -105,9 +105,8 @@ data Code : Set where
 
 record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
-    params : All (λ _ → Id) Ts
-
-  field
+    funId     : Id
+    params    : Named Ts
     body      : Code
     -- hasEntry  : (Id.ident "entry" , params) ∈ ℓ
     -- voidparam : All (_≢ void) Ts
@@ -115,13 +114,14 @@ record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
 
 
 FunList' : (Σ' Σ : SymbolTab) → Set
-FunList' Σ' = All (λ (_ , (ts , t)) → FunDef Σ' ts t)
+FunList' Σ' = All (λ (ts , t) → FunDef Σ' ts t)
 
 record llvmProgram : Set where
   field
-    BuiltIn : SymbolTab
-    Defs    : SymbolTab
+    {BuiltIn Defs} : SymbolTab
     χ       : TypeTab
+    NamedBuiltIn : Named BuiltIn
+
   Σ' = BuiltIn ++ Defs
 
   field
@@ -129,3 +129,6 @@ record llvmProgram : Set where
     Strings    : List (Id × String)
     hasDefs    : FunList' Σ' Defs
     -- uniqueDefs : Unique Σ'
+
+  NamedFuns : Named Σ'
+  NamedFuns = NamedBuiltIn ++⁺ (allMap FunDef.funId hasDefs)

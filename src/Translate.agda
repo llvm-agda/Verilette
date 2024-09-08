@@ -2,6 +2,7 @@ open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Data.List.Relation.Unary.Any.Properties using () renaming (gmap to anyMap)
 open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 open import Data.Product using (_×_; _,_; proj₂)
 
@@ -15,8 +16,7 @@ open import Function using (_∘_; const)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
-open import TypedSyntax hiding (Γ; Γ'; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx)
-open import TypeCheck.Util using (anyMap)
+open import TypedSyntax hiding (Γ; Γ'; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx; SymbolTab to newSymbolTab)
 
 
 -- Translating from WellTyped to TypedSyntax
@@ -27,8 +27,8 @@ open Statements Σ χ
 open Declarations Σ χ
 open WellTyped.Return
 
-open Typed Σ χ
-open Valid Σ χ
+open Typed (map proj₂ Σ) χ
+open Valid (map proj₂ Σ) χ
 
 dropAllId' : Block → newBlock
 dropAllId' = map proj₂
@@ -78,7 +78,7 @@ toExp (eOrd opP p x y) with opP
 toExp (eAnd x y)         = ELogic   (toExp x) LogicOp.&& (toExp y)
 toExp (eOr  x y)         = ELogic   (toExp x) LogicOp.|| (toExp y)
 toExp (ePrintString s) = EPrintStr s
-toExp (eApp id p xs)   = EAPP id (mapToExp xs) p
+toExp (eApp id p xs)   = EAPP (anyMap (λ {refl → refl}) p) (mapToExp xs)
   where mapToExp : ∀ {es Ts} → Pointwise (Γ ⊢_∶_) es Ts → All (Exp (dropAllId Γ)) Ts
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs

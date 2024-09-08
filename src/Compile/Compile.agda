@@ -1,11 +1,14 @@
 
 open import Relation.Binary.PropositionalEquality using (refl; _≡_; _≢_; cong)
 open import Data.List.Relation.Unary.All using (All; lookup); open All
+open import Data.List.Relation.Unary.All.Properties using (++⁺) renaming (gmap⁺ to allMap)
 open import Data.List.Relation.Unary.Any using (Any); open Any
+open import Data.List.Relation.Unary.Any.Properties using () renaming (gmap to anyMap)
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive using (Star) renaming (ε to []; _◅_ to _∷_)
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
 open import Data.List    using (List; _∷_; []; map) renaming (_++_ to _+++_; _ʳ++_ to _++r_)
+open import Data.List.Properties using (map-++)
 open import Data.String  using (String; fromList; _++_; length)
 
 open import Agda.Builtin.Int using (pos)
@@ -26,8 +29,6 @@ open RawMonad {{...}}
 open import Code hiding (TypeTab)
 open import Javalette.AST using (ident; RelOp) renaming (Ident to Id; Type to OldType)
 open import TypedSyntax hiding (T; Ts) renaming (* to mul; toSet to oldToSet; SymbolTab to OldSymbolTab)
-
-open import TypeCheck.Util using (anyMap)
 
 module Compile.Compile where
 
@@ -65,7 +66,7 @@ CtxList : Ctx → Set
 CtxList = All BlockList
 
 SymTab : OldSymbolTab → Set
-SymTab = All (λ (_ , (ts , t)) → Operand (fun (llvmType t) (llvmTypes ts)))
+SymTab = All (λ _ → Id)
 
 record GlobalState : Set where
   constructor gS
@@ -166,12 +167,7 @@ putLabel l = modify λ s → record s {block = label l ∷ block s}
 
 
 llvmSym : OldSymbolTab → SymbolTab
-llvmSym [] = []
-llvmSym ((id , ts , t) ∷ xs) = (id , llvmTypes ts , llvmType t) ∷ llvmSym xs
-
-llvmSymHom : (Σ' Σ : OldSymbolTab) → llvmSym (Σ' +++ Σ) ≡ (llvmSym Σ' +++ llvmSym Σ)
-llvmSymHom [] Σ = refl
-llvmSymHom (x ∷ Σ') Σ rewrite llvmSymHom Σ' Σ = refl
+llvmSym = map (λ (ts , t) → (llvmTypes ts , llvmType t))
 
 
 fromNum : Num t → FirstClass (llvmType t)
@@ -304,7 +300,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
 
                                 operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
                                 emitTmp (call (global (ident "printString")) (operand ∷ []))
-  compileExp (EAPP id es p) = emitTmp =<< call (lookup σ p) <$> mapCompileExp es
+  compileExp (EAPP p es) = emitTmp =<< call (global (lookup σ p)) <$> mapCompileExp es
     where mapCompileExp : All (Exp Γ) ts → CM Γ (All Operand (llvmTypes ts))
           mapCompileExp []       = pure []
           mapCompileExp (x ∷ xs) = _∷_ <$> compileExp x <*> mapCompileExp xs
@@ -382,11 +378,11 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileFun glob def = let s , f = runCM compileBody (initState glob)
                         in f , globalS s
     where open Def def
-          withInitBlock : Params Δ → CM (Δ ∷ []) A → CM ([] ∷ []) A
+          withInitBlock : Named Δ → CM (Δ ∷ []) A → CM ([] ∷ []) A
           withInitBlock [] m = m
           withInitBlock (i ∷ is) m = withInitBlock is (withNewVar (local i) m)
 
-          llvmParams : ∀ {ts} → Params ts → Params (llvmTypes ts)
+          llvmParams : ∀ {ts} → Named ts → Named (llvmTypes ts)
           llvmParams []         = []
           llvmParams (px ∷ pxs) = px ∷ llvmParams pxs
 
@@ -395,7 +391,8 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                            withInitBlock params do
                                  compileStms body
                                  body ← block <$> get
-                                 pure (record { params = llvmParams params
+                                 pure (record { funId = funId
+                                              ; params = llvmParams params
                                               ; body = body
                                               })
 
@@ -408,18 +405,14 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
 
 compileProgram : Program → llvmProgram
 compileProgram p =
-  let defs , globState = compileFuns (mkSymTab uniqueDefs) χ hasDefs (gS 0 [])
+  let defs , globState = compileFuns NamedFuns χ hasDefs (gS 0 [])
                    in record
-                     { BuiltIn = llvmSym BuiltIn
-                     ; Defs    = llvmSym Defs
+                     { NamedBuiltIn = allMap (λ x → x) NamedBuiltIn
                      ; Strings = strings globState
                      ; hasDefs = help defs
                      ; χ = map (λ {(n , c , fs) → n , map (llvmType ∘ proj₂) fs}) χ
                      }
   where open Program p
-        mkSymTab : Unique Σ → SymTab Σ
-        mkSymTab [] = []
-        mkSymTab (_∷_ {id} _ xs) = (global id) ∷ mkSymTab xs
 
         help : FunList' (llvmSym (BuiltIn +++ Defs)) (llvmSym Defs) → FunList' (llvmSym BuiltIn +++ llvmSym Defs) (llvmSym Defs)
-        help x rewrite llvmSymHom BuiltIn Defs = x
+        help x rewrite map-++ (λ (ts , t) → (llvmTypes ts , llvmType t)) BuiltIn Defs = x
