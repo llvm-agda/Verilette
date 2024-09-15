@@ -35,7 +35,6 @@ TypeTab : Set
 TypeTab = List (Id × (Id × List (Id × Type)))
 
 
-
 Block : Set
 Block = List Type
 
@@ -44,6 +43,7 @@ Ctx = List Block
 
 Named : ∀ {A} → List A → Set
 Named = All (λ _ → Id)
+
 
 variable
   T T' t : Type
@@ -67,6 +67,9 @@ e ∈' xs = Any (e ∈_) xs
 data Unique {A : Set} : (l : List (Id × A)) → Set where
   []  : Unique []
   _∷_ : ∀ {id xs x} → id ∉ xs → Unique xs → Unique ((id , x) ∷ xs)
+
+All× : (A → B → Set) → List (A × B) → Set
+All× P = All (λ (a , b) → P a b)
 
 --------------------------------------------------------------------------------
 -- Basic defs
@@ -213,10 +216,6 @@ record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  wh
     return    : returnStms body
 
 
--- FunList contains a function parameterized by Σ' for each element in Σ.
-FunList : (χ : TypeTab) → (Σ' Σ : SymbolTab) → Set
-FunList χ Σ' = All (λ (ts , t) → Def Σ' χ ts t)
-
 record Program : Set where
   field
     {BuiltIn Defs} : SymbolTab
@@ -227,7 +226,7 @@ record Program : Set where
 
   field
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
-    hasDefs    : FunList χ Σ' Defs
+    hasDefs    : All×  (Def Σ' χ) Defs
     -- uniqueDefs : Unique Σ'
 
   NamedFuns : Named Σ'

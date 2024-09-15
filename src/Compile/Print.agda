@@ -130,7 +130,7 @@ pFun {T = T} def =
         pParams = "(" ++ intersperse ", " (reduce (λ {t} → λ {(ident i) → pType t ++ " %" ++ i}) params) ++ ")"
 
 pProgram : llvmProgram → String
-pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pTypes ∷ unlines pStrings ∷ pDefs hasDefs
+pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pTypes ∷ unlines pStrings ∷ reduce pFun hasDefs
   where open llvmProgram p
         pCalloc : String
         pCalloc = "declare i8* @calloc(i32, i32)"
@@ -144,10 +144,6 @@ pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pType
                      { (ident "printString") → "declare void @printString(i8*)" -- since we use a "hack" for printString
                      ; {ts , t} (ident i) →
                             "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) NamedBuiltIn
-
-        pDefs : ∀ {Σ' Σ} → FunList' Σ' Σ → List String
-        pDefs []                 = []
-        pDefs (x ∷ xs) = pFun x ∷ pDefs xs
 
         pTypes : List String
         pTypes = map (λ { (ident x , ts) → "%" ++ x ++ " = type { " ++ intersperse ", " (map pType ts) ++ "}"  })  χ

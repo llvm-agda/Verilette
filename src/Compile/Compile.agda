@@ -397,7 +397,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                               ; body = body
                                               })
 
-  compileFuns : {Σ' : OldSymbolTab} → FunList χ Σ Σ' → GlobalState → (FunList' (llvmSym Σ) (llvmSym Σ') × GlobalState)
+  compileFuns : {Σ' : OldSymbolTab} → All× (Def Σ χ) Σ' → GlobalState → (All× (FunDef (llvmSym Σ)) (llvmSym Σ') × GlobalState)
   compileFuns []           g = [] , g
   compileFuns (def ∷ defs) g = let defs' , g'  = compileFuns defs g
                                    def'  , g'' = compileFun g' def
@@ -415,5 +415,5 @@ compileProgram p =
                      }
   where open Program p
 
-        help : FunList' (llvmSym (BuiltIn +++ Defs)) (llvmSym Defs) → FunList' (llvmSym BuiltIn +++ llvmSym Defs) (llvmSym Defs)
+        help : All× (FunDef (llvmSym (BuiltIn +++ Defs))) (llvmSym Defs) → All× (FunDef (llvmSym BuiltIn +++ llvmSym Defs)) (llvmSym Defs)
         help x rewrite map-++ (λ (ts , t) → (llvmTypes ts , llvmType t)) BuiltIn Defs = x

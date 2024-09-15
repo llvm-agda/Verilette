@@ -103,6 +103,7 @@ data Code : Set where
   _:=_∷_ : Operand T → Instruction T → Code → Code
 
 
+
 record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
   field
     funId     : Id
@@ -112,9 +113,6 @@ record FunDef (Σ : SymbolTab) (Ts : List Type) (T : Type) : Set  where
     -- voidparam : All (_≢ void) Ts
     -- uniqueParams   : Unique params
 
-
-FunList' : (Σ' Σ : SymbolTab) → Set
-FunList' Σ' = All (λ (ts , t) → FunDef Σ' ts t)
 
 record llvmProgram : Set where
   field
@@ -127,7 +125,7 @@ record llvmProgram : Set where
   field
     -- hasMain    : (Id.ident "main" , ([] , int)) ∈ Σ'
     Strings    : List (Id × String)
-    hasDefs    : FunList' Σ' Defs
+    hasDefs    : All× (FunDef Σ') Defs
     -- uniqueDefs : Unique Σ'
 
   NamedFuns : Named Σ'

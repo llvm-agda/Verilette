@@ -89,7 +89,7 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
 
 
   -- Σ' contains all the function signatures that should be checked
-  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (FunList χ (map snd Σ) (map snd Σ'))
+  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (All× (Def (map snd Σ) χ) (map snd Σ'))
   checkFuns []      []      = pure []
   checkFuns []      (_ ∷ _) = error "More functions than in SyTab"
   checkFuns (_ ∷ _) []      = error "More entries in symtab than defs"
@@ -104,7 +104,6 @@ typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ , Χ , χ = getTopDef defs
     let Σ' = b +++ Σ
-    let refl = map-++ snd b Σ
     Ωχ ← mergeΧχ Χ χ
     ([] , int) , p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
@@ -119,5 +118,5 @@ typeCheck b (program defs) = do
         toNamed [] = []
         toNamed ((id , _) ∷ xs) = id ∷ toNamed xs
 
-        help : ∀ {zs χ} → (xs ys : SymbolTab) → FunList χ (map snd (xs +++ ys)) zs → FunList χ (map snd xs +++ map snd ys) zs
+        help : ∀ {zs χ} → (xs ys : SymbolTab) → All× (Def (map snd (xs +++ ys)) χ) zs → All×  (Def (map snd xs +++ map snd ys) χ) zs
         help xs ys x rewrite map-++ snd xs ys = x
