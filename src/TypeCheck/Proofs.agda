@@ -91,59 +91,54 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
 
 
 
-module ReturnsProof (Σ : SymbolTab) (χ : TypeTab) where
+module ReturnsProof {Σ : SymbolTab} {χ : TypeTab} {T : Type} where
 
-  open WellTyped.Statements Σ χ
+  open WellTyped.Statements Σ χ T
   open WellTyped.Declarations Σ χ
   open WellTyped.Return
 
-  open TS.Valid (map proj₂ Σ) χ
+  open TS.Valid (map proj₂ Σ) χ T
   open TS.Typed (map proj₂ Σ) χ
   open TS.returnStm
   open TS.returnStms
 
-  open Javalette.AST.Item
-
   open import Translate Σ χ using (dropAllId; toExp; toStms; _SCons'_; toDecls)
 
 
-  returnDecl : ∀ {T Γ t is} (n : TS.NonVoid χ t)
-               {ss : Stms T (dropAllId Γ')}
+  returnDecl : ∀ {t is} (n : TS.NonVoid χ t)
+               {ss : Stms (dropAllId Γ')}
                (is' : Star' (DeclP t) Γ is Γ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)
   returnDecl n [] p = p
-  returnDecl n (noInit px   ∷ is) p = SCon (returnDecl n is p)
-  returnDecl n (init   px e ∷ is) p = SCon (returnDecl n is p)
-
-  returnProofThere : ∀ {T s ss} {sT : _⊢_⇒_ T Γ s Γ'} {ssT : _⊢_⇒⇒_ T Γ' ss Γ''}
-                            → TS.returnStms (toStms ssT) → TS.returnStms (toStms (sT ∷ ssT))
-  returnProofThere {sT = empty} x = x
-  returnProofThere {sT = ret x₁} x       = SHead SReturn
-  returnProofThere {sT = vRet refl} x    = SHead SReturn
-  returnProofThere {sT = condElse x₁ sT sT₁} x = SCon x
-  returnProofThere {sT = bStmt x₁} x     = SCon x
-  returnProofThere {sT = ass id x₁ x₂} x = SCon x
-  returnProofThere {sT = incr id x₁} x   = SCon x
-  returnProofThere {sT = decr id x₁} x   = SCon x
-  returnProofThere {sT = cond x₁ sT} x   = SCon x
-  returnProofThere {sT = while x₁ sT} x  = SCon x
-  returnProofThere {sT = assIdx x₁ x₂ x₃} x = SCon x
-  returnProofThere {sT = for id x₁ sT} x = SCon x
-  returnProofThere {sT = sExp x₁} x      = SCon x
-  returnProofThere {sT = assPtr x₁ x₂ x₃ x₄} x = SCon x
-  returnProofThere {sT = decl n is} x = returnDecl n is x
+  returnDecl n (noInit px   ∷ is) p = there (returnDecl n is p)
+  returnDecl n (init   px e ∷ is) p = there (returnDecl n is p)
 
 
-  returnProof     : ∀ {T ss}    {ssT : _⊢_⇒⇒_ T Γ ss Γ'} → Returns ssT → TS.returnStms (toStms ssT)
-  returnProofHere : ∀ {T s ssT} {sT  : _⊢_⇒_  T Γ s  Γ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
-  returnProofHere ret       = SHead SReturn
-  returnProofHere vRet      = SHead SReturn
-  returnProofHere (bStmt x) = SHead (SBlock (returnProof x))
-  returnProofHere (condElse x x₁) = SHead (SIfElse (returnProofHere x) (returnProofHere x₁))
+  returnProof     :         {ssT : Γ ⊢ ss ⇒⇒ Γ'} → Returns ssT → TS.returnStms (toStms ssT)
+  returnProofHere : ∀ {ssT} {sT  : Γ ⊢ s  ⇒  Γ'} → Returns' sT → TS.returnStms (sT SCons' ssT)
+  returnProofHere ret         = here SReturn
+  returnProofHere (vRet refl) = here SReturn
+  returnProofHere (bStmt x)   = here (SBlock (returnProof x))
+  returnProofHere (condElse t f) = here (SIfElse (returnProofHere t) (returnProofHere f))
 
-  returnProof {ssT = s' ∷ ss'} (there x) = returnProofThere {sT = s'} {ssT = ss'} (returnProof x)
-  returnProof (here x) = returnProofHere  x
-  returnProof vEnd     = SHead SReturn
+  returnProof (here x)    = returnProofHere  x
+  returnProof (vEnd refl) = here SReturn
+  returnProof {ssT = s' ∷ _} (there x) with x' ← returnProof x with s'
+  ... | empty     = x'
+  ... | ret _     = here SReturn
+  ... | vRet refl = here SReturn
+  ... | decl n is = returnDecl n is x'
+  ... | condElse _ _ _ = there x'
+  ... | bStmt _        = there x'
+  ... | ass _ _ _      = there x'
+  ... | incr _ _       = there x'
+  ... | decr _ _       = there x'
+  ... | cond _ _       = there x'
+  ... | while _ _      = there x'
+  ... | assIdx _ _ _   = there x'
+  ... | for _ _ _      = there x'
+  ... | sExp _         = there x'
+  ... | assPtr _ _ _ _ = there x'
 
 
 

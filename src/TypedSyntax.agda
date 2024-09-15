@@ -203,8 +203,8 @@ data returnStm  {T Σ χ Γ} : (s  : Stm  Σ χ T Γ) → Set where
   SBlock  : ∀ {ss} → returnStms ss → returnStm (SBlock ss)
   SIfElse : ∀ {e s1 s2} → returnStms s1 → returnStms s2 → returnStm (SIfElse e s1 s2)
 data returnStms where
-  SHead : ∀ {s ss} → returnStm  s  → returnStms (s ∷ ss)
-  SCon  : ∀ {s ss} → returnStms ss → returnStms (s ∷ ss)
+  here  : ∀ {s ss} → returnStm  s  → returnStms (s ∷ ss)
+  there : ∀ {s ss} → returnStms ss → returnStms (s ∷ ss)
 
 
 record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  where

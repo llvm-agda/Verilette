@@ -8,7 +8,7 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 
 open import Data.Product using (_×_; _,_; ∃; proj₂)
-open import Data.List using (List; _∷_; []; zip; _++_; reverse; [_]; foldr) renaming (_ʳ++_ to _++r_; _∷ʳ_ to _∷r_)
+open import Data.List using (List; _∷_; []; map; _++_; [_]; foldr)
 open import Data.List.Properties using (ʳ++-defn)
 
 open import Data.Empty using (⊥)
@@ -19,7 +19,7 @@ open import Javalette.AST renaming (Ident to Id)
 open import TypedSyntax as TS using (TypeTab;
                                     _∈'_; _∈_; _∉_;
                                     Num; Eq; Ord; NonVoid; Basic;
-                                    T; Ts)
+                                    t; T; Ts)
 open NonVoid
 
 
@@ -43,6 +43,10 @@ SymbolTab = List (Id × FunType)
 variable
   e x y : Expr
   es : List Expr
+
+  s s1 s2 : Stmt
+  ss : List Stmt
+
   Δ Δ' : Block
   Γ Γ' Γ'' : Ctx
 
@@ -146,38 +150,34 @@ module Statements (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
     for      : ∀ {t e s} id →  Γ ⊢ e ∶ array t  →  ([ id , t ] ∷ Γ) ⊢ s ⇒ Γ'  →  Γ ⊢ for t id e s ⇒ Γ
 
 
--- Witness of return statments
-module Return {Σ : SymbolTab} {χ : TypeTab} where
 
-  open Statements Σ χ
+-- Witness of return statments
+module Return {Σ : SymbolTab} {χ : TypeTab} {T : Type} where
+
+  open Statements Σ χ T
   open Expression Σ χ
 
-  private
-    variable
-      s s1 s2 : Stmt
-      ss      : List Stmt
+  variable
+    s' s1' s2' : Γ ⊢ s ⇒ Γ'
+    ss'        : Γ ⊢ ss ⇒⇒ Γ'
 
-      s' s1' s2' : _⊢_⇒_  T Γ s Γ'
-      ss' : _⊢_⇒⇒_ T Γ ss Γ'
+    e' : Γ ⊢ e ∶ t
 
-      e' : Γ ⊢ e ∶ T
-
-  data Returns' {Γ : Ctx} : ∀ {  T} → (_⊢_⇒_  T Γ s  Γ') → Set
-  data Returns            : ∀ {Γ T} → (_⊢_⇒⇒_ T Γ ss Γ') → Set where
+  data Returns' {Γ : Ctx} :         (Γ ⊢ s  ⇒  Γ') → Set
+  data Returns            : ∀ {Γ} → (Γ ⊢ ss ⇒⇒ Γ') → Set where
     here  : Returns' s' → Returns (s' ∷ ss')
     there : Returns ss' → Returns (s' ∷ ss')
-    vEnd  : Returns {Γ = Δ ∷ []} {T = void} []
+    vEnd  : (T ≡ void) → Returns {Γ = Δ ∷ []} []
 
   data Returns' where
     ret      : Returns' (ret e')
-    vRet     : Returns' (vRet refl)
+    vRet     : (p : T ≡ void) → Returns' (vRet p)
     bStmt    : Returns ss' → Returns' (bStmt ss')
     condElse : Returns' s1' → Returns' s2' → Returns' (condElse e' s1' s2')
 
 
 fromArgs : List Arg → Block
-fromArgs [] = []
-fromArgs (argument t x ∷ as) = (x , t) ∷ fromArgs as
+fromArgs = map (λ {(argument t x) → (x , t)})
 
 module FunDef (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 

@@ -195,19 +195,19 @@ module CheckStatements (T : Type) where
                                           pure (_ , init p e' ∷ ps)
 
 
-module _ where
+module _ {t : Type} where
 
-  open Statements Σ χ
+  open Statements Σ χ t
   open WellTyped.Return
 
-  checkReturn  : ∀ {ss t} → (ss' : _⊢_⇒⇒_ t Γ ss Γ') → TCM (Returns  ss')
-  checkReturn' : ∀ {s  t} → (s'  : _⊢_⇒_  t Γ s  Γ') → TCM (Returns' s')
+  checkReturn  : (ss' : Γ ⊢ ss ⇒⇒ Γ') → TCM (Returns  ss')
+  checkReturn' : (s'  : Γ ⊢ s  ⇒  Γ') → TCM (Returns' s')
   checkReturn (s ∷ ss) = here <$> checkReturn' s <|> there <$> checkReturn ss
-  checkReturn {Γ = Δ ∷ []} {t = void} [] = pure vEnd
-  checkReturn                         [] = error "CheckReturn failed; found no return"
+  checkReturn {Γ = Δ ∷ []} [] = vEnd <$> (t =?= void)
+  checkReturn              [] = error "CheckReturn failed; found no return"
 
-  checkReturn' (condElse x s1 s2) = condElse <$> checkReturn' s1 <*> checkReturn' s2
-  checkReturn' (bStmt x)   = bStmt <$> checkReturn x
-  checkReturn' (ret _)     = pure ret
-  checkReturn' (vRet refl) = pure vRet
+  checkReturn' (condElse _ t f) = condElse <$> checkReturn' t <*> checkReturn' f
+  checkReturn' (bStmt ss)       = bStmt <$> checkReturn ss
+  checkReturn' (ret _)          = pure ret
+  checkReturn' (vRet refl)      = pure (vRet refl)
   checkReturn' s = error "CheckReturn' failed; found non-returning stmt"

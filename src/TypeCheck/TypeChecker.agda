@@ -1,25 +1,11 @@
 module TypeCheck.TypeChecker where
 
-open import Agda.Builtin.Bool
-open import Agda.Primitive
-open import Agda.Builtin.Int -- using (Int ; pos)
-open import Agda.Builtin.Float renaming (Float to Double)
 open import Agda.Builtin.Equality
 
-open import Relation.Nullary.Negation.Core using (¬_)
-open import Relation.Binary.PropositionalEquality using (_≡_; _≢_)
-
-open import Effect.Monad
-
-open import Data.String using (String; _≟_; _++_ )
-open import Data.Maybe.Base using (Maybe; nothing; just)
-open import Data.Sum.Effectful.Left renaming (monad to monadSum)
-open import Data.Sum.Base using (_⊎_ ; inj₁ ; inj₂)
-open import Data.List using (List; _∷_ ; []; map; zip; unzip; reverse) renaming (_++_ to _+++_)
+open import Data.List using (List; _∷_ ; []; map) renaming (_++_ to _+++_)
 open import Data.List.Properties using (map-++)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
-open import Function using (case_of_)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
 open import TypedSyntax hiding (SymbolTab) renaming (Program to TypedProgram)
@@ -35,6 +21,9 @@ builtin = (ident "printInt"    , (int  ∷ [] , void))
         ∷ (ident "readInt"     , (       [] , int ))
         ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
 
+toNamed : (xs : List (Id × A)) → Named (map snd xs)
+toNamed [] = []
+toNamed ((id , _) ∷ xs) = id ∷ toNamed xs
 
 mergeΧχ : List (Id × Id) → List (Id × List (Id × Type)) → TCM TypeTab
 mergeΧχ [] χ            = pure []
@@ -64,7 +53,7 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
 
   open import TypeCheck.CheckExp Σ χ; open CheckStatements
   open import Translate Σ χ using (toStms; dropAllId')
-  import TypeCheck.Proofs as TCP; open TCP.ReturnsProof  Σ χ using (returnProof)
+  import TypeCheck.Proofs as TCP; open TCP.ReturnsProof using (returnProof)
 
   checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def (map snd Σ) χ ts t)
   checkFun t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
@@ -78,14 +67,11 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
       returns ← checkReturn ss'
       noVoid  ← checkAll (_=/= void) ts
       pure (record { funId     = id
-                   ; params    = formatParams params
+                   ; params    = toNamed params
                    ; body      = toStms ss'
                    ; voidparam = noVoid
                    ; return    = returnProof returns
                    })
-    where formatParams : (Δ : List (Id × Type)) → Named (dropAllId' Δ)
-          formatParams [] = []
-          formatParams ((id , _) ∷ Δ) = id ∷ formatParams Δ
 
 
   -- Σ' contains all the function signatures that should be checked
@@ -114,9 +100,5 @@ typeCheck b (program defs) = do
                  -- ; hasMain    = p
                  ; hasDefs    = help b Σ defs'
                  })
-  where toNamed : (xs : List (Id × A)) → Named (map snd xs)
-        toNamed [] = []
-        toNamed ((id , _) ∷ xs) = id ∷ toNamed xs
-
-        help : ∀ {zs χ} → (xs ys : SymbolTab) → All× (Def (map snd (xs +++ ys)) χ) zs → All×  (Def (map snd xs +++ map snd ys) χ) zs
+  where help : ∀ {zs χ} → (xs ys : SymbolTab) → All× (Def (map snd (xs +++ ys)) χ) zs → All×  (Def (map snd xs +++ map snd ys) χ) zs
         help xs ys x rewrite map-++ snd xs ys = x
