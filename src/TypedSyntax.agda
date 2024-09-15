@@ -46,7 +46,7 @@ Named : ∀ {A} → List A → Set
 Named = All (λ _ → Id)
 
 variable
-  T t : Type
+  T T' t : Type
   Ts ts : List Type
   Δ Δ' Δ'' Δ₁ Δ₂ : Block
   Γ Γ' : Ctx
@@ -120,6 +120,12 @@ data Basic (χ : TypeTab) : (T : Type) → Set where
   BasicBool  : Basic χ bool
   BasicStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → Basic χ (structT n)
 
+data Op : Type → Type → Set where
+  OpNum   : Num T → ArithOp → Op T T
+  OpOrd   : Ord T → OrdOp   → Op T bool
+  OpEq    : Eq  T → EqOp    → Op T bool
+  OpLogic :         LogicOp → Op bool bool
+  OpMod   :                   Op int int
 
 data Return (P : Type → Set) : Type → Set where
   vRet : Return P void
@@ -139,11 +145,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EValue  : toSet T  → Exp Γ T
     EId     : T ∈' Γ → Exp Γ T
     EAPP    : (ts , T) ∈ Σ → All (Exp Γ) ts → Exp Γ T
-    EArith  : Num T   → Exp Γ T → ArithOp → Exp Γ T → Exp Γ T
-    EMod    : Exp Γ int → Exp Γ int → Exp Γ int
-    EOrd    : Ord T → Exp Γ T → OrdOp → Exp Γ T → Exp Γ bool
-    EEq     : Eq T  → Exp Γ T → EqOp  → Exp Γ T → Exp Γ bool
-    ELogic  : Exp Γ bool → LogicOp → Exp Γ bool → Exp Γ bool
+    EOp     : Op T' T → (x y : Exp Γ T') → Exp Γ T
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
     EArray  : ∀ {t} → WFNew (Exp Γ int) array t → Exp Γ t
     EStruct : ∀ {n} → Exp Γ (structT n)

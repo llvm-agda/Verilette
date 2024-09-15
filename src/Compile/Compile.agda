@@ -238,30 +238,31 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileExp : (e : Exp Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
   compileExp (EId x)           = emitTmp =<< load <$> getPtr x
-  compileExp (EArith p x op y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
-  compileExp (EMod     x    y) = emitTmp =<< srem                  <$> compileExp x <*> compileExp y
-  compileExp (EOrd   p x op y) = emitTmp =<< cmp   (fromOrd p) op' <$> compileExp x <*> compileExp y
+
+  compileExp (EOp (OpNum p op) x y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
+  compileExp (EOp OpMod     x    y) = emitTmp =<< srem                  <$> compileExp x <*> compileExp y
+  compileExp (EOp (OpOrd p op) x y) = emitTmp =<< cmp   (fromOrd p) op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { <  → RelOp.lTH ; <= → RelOp.lE
                              ; >  → RelOp.gTH ; >= → RelOp.gE }
-  compileExp (EEq    p x op y) = emitTmp =<< cmp   (fromEq  p) op' <$> compileExp x <*> compileExp y
+  compileExp (EOp (OpEq p op) x y) = emitTmp =<< cmp   (fromEq  p) op' <$> compileExp x <*> compileExp y
     where op' = case op of λ { == → RelOp.eQU ; != → RelOp.nE }
 
-  compileExp (ELogic x op y) = do mid ← newLabel
-                                  end ← newLabel
-                                  res ← emitTmp (alloc i1)
+  compileExp (EOp (OpLogic op) x y) = do mid ← newLabel
+                                         end ← newLabel
+                                         res ← emitTmp (alloc i1)
 
-                                  x' ← compileExp x
-                                  emit (store x' res)
-                                  case op of λ { && → emit (branch x' mid end)
-                                               ; || → emit (branch x' end mid)}
+                                         x' ← compileExp x
+                                         emit (store x' res)
+                                         case op of λ { && → emit (branch x' mid end)
+                                                      ; || → emit (branch x' end mid)}
 
-                                  putLabel mid
-                                  y' ← compileExp y
-                                  emit (store y' res)
-                                  emit (jmp end)
+                                         putLabel mid
+                                         y' ← compileExp y
+                                         emit (store y' res)
+                                         emit (jmp end)
 
-                                  putLabel end
-                                  emitTmp (load res)
+                                         putLabel end
+                                         emitTmp (load res)
 
   compileExp (EIdx arr i) = do arrPtr ← compileExp arr
                                i' ← compileExp i

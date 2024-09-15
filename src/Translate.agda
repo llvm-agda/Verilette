@@ -12,7 +12,7 @@ import Data.Float   as Doub
 
 open import Data.List using (List; _∷_; []; _++_; [_]; map; foldr) renaming (_ʳ++_ to _++r_)
 open import Data.List.Properties using (ʳ++-defn)
-open import Function using (_∘_; const)
+open import Function using (_∘_; const; case_of_)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
@@ -51,8 +51,8 @@ toExp (eLitInt x)   = EValue x
 toExp (eLitDoub x)  = EValue x
 toExp eLitTrue      = EValue Bool.true
 toExp eLitFalse     = EValue Bool.false
-toExp (neg p x)     = EArith p   (EValue (zero p)) ArithOp.- (toExp x)
-toExp (not x)       = EEq EqBool (EValue Bool.false) EqOp.== (toExp x)
+toExp (neg p x)     = EOp (OpNum p ArithOp.-)   (EValue (zero p))   (toExp x)
+toExp (not x)       = EOp (OpEq EqBool EqOp.==) (EValue Bool.false) (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
 toExp (eDeRef x p p') = EDeRef (toExp x) p p'
 toExp (eNull x)     = EValue 0
@@ -62,21 +62,17 @@ toExp (eArray _ ns) = EArray (toNew ns)
         toNew (px ∷ [])          = nType  (toExp px)
         toNew (px ∷ pxs@(_ ∷ _)) = nArray (toExp px) (toNew pxs)
 toExp (eLength x)        = ELength (toExp x)  -- Transform to normal function call?
-toExp (eMod x y)         = EMod     (toExp x)            (toExp y)
-toExp (eMul p x y)       = EArith p (toExp x) ArithOp.*  (toExp y)
-toExp (eDiv p x y)       = EArith p (toExp x) ArithOp./  (toExp y)
-toExp (eAdd p plus  x y) = EArith p (toExp x) ArithOp.+  (toExp y)
-toExp (eAdd p minus x y) = EArith p (toExp x) ArithOp.-  (toExp y)
-toExp (eEq  opP p x y) with opP
-... | eQU                = EEq    p (toExp x) EqOp.==    (toExp y)
-... | nE                 = EEq    p (toExp x) EqOp.!=    (toExp y)
-toExp (eOrd opP p x y) with opP
-... | lTH                = EOrd   p (toExp x) OrdOp.<    (toExp y)
-... | lE                 = EOrd   p (toExp x) OrdOp.<=   (toExp y)
-... | gTH                = EOrd   p (toExp x) OrdOp.>    (toExp y)
-... | gE                 = EOrd   p (toExp x) OrdOp.>=   (toExp y)
-toExp (eAnd x y)         = ELogic   (toExp x) LogicOp.&& (toExp y)
-toExp (eOr  x y)         = ELogic   (toExp x) LogicOp.|| (toExp y)
+toExp (eMod x y)         = EOp OpMod     (toExp x)            (toExp y)
+toExp (eMul p x y)       = EOp (OpNum p ArithOp.*) (toExp x) (toExp y)
+toExp (eDiv p x y)       = EOp (OpNum p ArithOp./) (toExp x) (toExp y)
+toExp (eAdd p plus  x y) = EOp (OpNum p ArithOp.+) (toExp x) (toExp y)
+toExp (eAdd p minus x y) = EOp (OpNum p ArithOp.-) (toExp x) (toExp y)
+toExp (eEq  op p x y)    = EOp (OpEq p op') (toExp x) (toExp y)
+  where op' = case op of λ {eQU → EqOp.==; nE → EqOp.!=}
+toExp (eOrd op p x y)    = EOp (OpOrd p op')    (toExp x) (toExp y)
+  where op' = case op of λ {lTH → OrdOp.< ; lE → OrdOp.<= ; gTH → OrdOp.> ; gE → OrdOp.>=}
+toExp (eAnd x y)         = EOp (OpLogic LogicOp.&&) (toExp x) (toExp y)
+toExp (eOr  x y)         = EOp (OpLogic LogicOp.||) (toExp x) (toExp y)
 toExp (ePrintString s) = EPrintStr s
 toExp (eApp id p xs)   = EAPP (anyMap (λ {refl → refl}) p) (mapToExp xs)
   where mapToExp : ∀ {es Ts} → Pointwise (Γ ⊢_∶_) es Ts → All (Exp (dropAllId Γ)) Ts
@@ -108,8 +104,8 @@ empty          SCons' ss = ss
 bStmt x        SCons' ss = SBlock (toStms x) ∷ ss
 ass id x e     SCons' ss = SAss (simplifyLookup x) (toExp e) ∷ ss
 assIdx arr i e SCons' ss = SAssIdx (toExp arr) (toExp i) (toExp e) ∷ ss
-incr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EArith NumInt (EId x') ArithOp.+ (EValue Int.1ℤ)) ∷ ss
-decr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EArith NumInt (EId x') ArithOp.- (EValue Int.1ℤ)) ∷ ss
+incr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EOp (OpNum NumInt ArithOp.+) (EId x') (EValue Int.1ℤ)) ∷ ss
+decr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EOp (OpNum NumInt ArithOp.-) (EId x') (EValue Int.1ℤ)) ∷ ss
 ret x          SCons' ss = SReturn (Ret (toExp x)) ∷ ss
 vRet refl      SCons' ss = SReturn vRet            ∷ ss
 cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss
