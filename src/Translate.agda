@@ -96,7 +96,7 @@ toDecls n (init   id e ∷ ds) ss = SDecl _ (toExp e)   ∷ toDecls n ds ss
 toStms   : ∀ {ss} → _⊢_⇒⇒_ T Γ ss Γ'                         → Stms T (dropAllId Γ)
 _SCons'_ : ∀ {s}  → _⊢_⇒_  T Γ s  Γ' → Stms T (dropAllId Γ') → Stms T (dropAllId Γ)
 toStms (x ∷ ss)                  = x SCons' (toStms ss)
-toStms {T = void} {Γ = _ ∷ _} [] = SReturn vRet ∷ []
+toStms {T = void} {Γ = _ ∷ []} [] = SReturn vRet ∷ []
 toStms {_}        {_}         [] = []
 
 decl n is      SCons' ss = toDecls n is ss
