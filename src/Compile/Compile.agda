@@ -59,9 +59,6 @@ toSetProof (OldType.structT x) = refl
 toSetProof (OldType.array t) = refl
 toSetProof (OldType.fun t ts) = refl
 
-BlockList : Block → Set
-BlockList = All (λ t → Operand (llvmType t *))
-
 CtxList : Ctx → Set
 CtxList = All (λ t → Operand (llvmType t *))
 
@@ -88,12 +85,6 @@ open CMState
 
 initState : GlobalState → CMState []
 initState glob = cMS glob 0 0 0 [] []
-
-addBlock : CMState Γ → CMState Γ
-addBlock (cMS g v t l c b) = cMS g v t l c b
-
-removeBlock : CMState Γ → CMState Γ
-removeBlock (cMS g v t l c b) = cMS g v t l c b
 
 addVar : Operand (llvmType t *) → CMState Γ → CMState (t ∷ Γ)
 addVar x (cMS g v t l γ b) = cMS g v t l (x ∷ γ) b
@@ -149,12 +140,6 @@ withNewVar {t = t} x m = do v ← varC <$> get
                             let (s' , a) = runState m (addVar p s)
                             put (removeVar s')
                             pure a
-
-inNewBlock : CM Γ A → CM Γ A
-inNewBlock m = do x ← get
-                  let (x' , a) = runState m (addBlock x)
-                  put (removeBlock x')
-                  pure a
 
 newLabel : CM Γ Label
 newLabel = do l ← labelC <$> get
@@ -332,7 +317,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileStms (SFor arr s ∷ ss) = do arr' ← compileExp arr
                                      forArray arr' λ v* → do
                                            v ← emitTmp (load v*)
-                                           inNewBlock $ withNewVar v (compileStms s)
+                                           withNewVar v (compileStms s)
                                      compileStms ss
   compileStms (SWhile x s  ∷ ss) = do preCond ← newLabel
                                       loop    ← newLabel
@@ -344,10 +329,10 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                       emit (branch x' loop end)
 
                                       putLabel loop
-                                      inNewBlock (compileStms s >> emit (jmp preCond))
+                                      compileStms s >> emit (jmp preCond)
                                       putLabel end
                                       compileStms ss
-  compileStms (SBlock s ∷ ss) = do b ← inNewBlock $ compileStms s
+  compileStms (SBlock s ∷ ss) = do b ← compileStms s
                                    if b then pure true
                                         else compileStms ss
   compileStms (SIfElse x t f ∷ ss) = do trueL  ← newLabel
@@ -357,11 +342,11 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                         x' ← compileExp x
                                         emit (branch x' trueL falseL)
                                         putLabel trueL
-                                        tRet  ← inNewBlock $ compileStms t
+                                        tRet  ← compileStms t
                                         unless tRet $ emit (jmp end)
 
                                         putLabel falseL
-                                        fRet ← inNewBlock $ compileStms f
+                                        fRet ← compileStms f
                                         unless fRet $ emit (jmp end)
 
                                         if tRet ∧ fRet then pure true
@@ -378,7 +363,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileFun glob def = let s , f = runCM compileBody (initState glob)
                         in f , globalS s
     where open Def def
-          withInitBlock : Named Δ → CM Δ A → CM [] A
+          withInitBlock : Named Γ → CM Γ A → CM [] A
           withInitBlock [] m = m
           withInitBlock (i ∷ is) m = withInitBlock is (withNewVar (local i) m)
 

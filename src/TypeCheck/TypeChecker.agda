@@ -56,7 +56,7 @@ open Valid renaming (Stm to TypedStm; Stms to TypedStms)
 module _ (χ : TypeTab) (Σ : SymbolTab) where
 
   open import TypeCheck.CheckExp Σ χ; open CheckStatements
-  open import Translate Σ χ using (toStms; dropAllId')
+  open import Translate Σ χ using (toStms)
   import TypeCheck.Proofs as TCP; open TCP.ReturnsProof using (returnProof)
 
   checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def (map snd Σ) χ ts t)
@@ -65,7 +65,7 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
   checkFun t ts (fnDef t' id as (block b)) with
     params ← map (λ {(argument t id) → id , t}) as = do
       refl ← t =?= t'
-      refl ← eqLists ts (dropAllId' params)
+      refl ← eqLists ts (map snd params)
       unique  ← checkUnique params
       _ , ss' ← checkStms t (params ∷ []) b
       returns ← checkReturn ss'

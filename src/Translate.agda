@@ -16,7 +16,7 @@ open import Function using (_∘_; const; case_of_)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
-open import TypedSyntax hiding (Γ; Γ'; Δ; Δ') renaming (Block to newBlock; Ctx to newCtx; SymbolTab to newSymbolTab)
+open import TypedSyntax hiding (Γ; Γ') renaming (Ctx to newCtx; SymbolTab to newSymbolTab)
 
 
 -- Translating from WellTyped to TypedSyntax
@@ -30,11 +30,8 @@ open WellTyped.Return
 open Typed (map proj₂ Σ) χ
 open Valid (map proj₂ Σ) χ
 
-dropAllId' : Block → newCtx
-dropAllId' = map proj₂
-
 dropAllId : Ctx → newCtx
-dropAllId = concat ∘ map dropAllId'
+dropAllId = concat ∘ map (map proj₂)
 
 simplifyLookup : (id , t) ∈' Γ → t ∈ (dropAllId Γ)
 simplifyLookup = anyConcat ∘ anyMap (anyMap λ {refl → refl})
@@ -42,7 +39,6 @@ simplifyLookup = anyConcat ∘ anyMap (anyMap λ {refl → refl})
 zero : Num T → toSet T
 zero NumInt    = Int.0ℤ
 zero NumDouble = 0.0
-
 
 -- Every well typed expression can be transformed into our representation
 toExp : Γ ⊢ e ∶ T → Exp (dropAllId Γ) T

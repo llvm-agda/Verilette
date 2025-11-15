@@ -34,10 +34,6 @@ SymbolTab = List FunType
 TypeTab : Set
 TypeTab = List (Id × (Id × List (Id × Type)))
 
-
-Block : Set
-Block = List Type
-
 Ctx : Set
 Ctx = List Type
 
@@ -48,7 +44,6 @@ Named = All (λ _ → Id)
 variable
   T T' t : Type
   Ts ts : List Type
-  Δ Δ' Δ'' Δ₁ Δ₂ : Block
   Γ Γ' : Ctx
   Σ : SymbolTab
   id : Id
