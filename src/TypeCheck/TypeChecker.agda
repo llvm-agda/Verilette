@@ -1,9 +1,12 @@
+{-# OPTIONS --rewriting #-}
+
 module TypeCheck.TypeChecker where
 
 open import Agda.Builtin.Equality
+open import Agda.Builtin.Equality.Rewrite
 
 open import Data.List using (List; _∷_ ; []; map) renaming (_++_ to _+++_)
-open import Data.List.Properties using (map-++)
+open import Data.List.Properties using (map-++; ++-identityʳ)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 
@@ -13,6 +16,7 @@ open import WellTyped using (SymbolTab)
 open import TypeCheck.Monad
 open import TypeCheck.Util
 
+{-# REWRITE ++-identityʳ #-}
 
 builtin : SymbolTab
 builtin = (ident "printInt"    , (int  ∷ [] , void))

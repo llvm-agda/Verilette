@@ -63,7 +63,7 @@ BlockList : Block → Set
 BlockList = All (λ t → Operand (llvmType t *))
 
 CtxList : Ctx → Set
-CtxList = All BlockList
+CtxList = All (λ t → Operand (llvmType t *))
 
 SymTab : OldSymbolTab → Set
 SymTab = All (λ _ → Id)
@@ -86,20 +86,20 @@ record CMState (Γ : Ctx) : Set where
 
 open CMState
 
-initState : GlobalState → CMState ([] ∷ [])
-initState glob = cMS glob 0 0 0 ([] ∷ []) []
+initState : GlobalState → CMState []
+initState glob = cMS glob 0 0 0 [] []
 
-addBlock : CMState Γ → CMState ([] ∷ Γ)
-addBlock (cMS g v t l c b) = cMS g v t l ([] ∷ c) b
+addBlock : CMState Γ → CMState Γ
+addBlock (cMS g v t l c b) = cMS g v t l c b
 
-removeBlock : CMState (Δ ∷ Γ) → CMState Γ
-removeBlock (cMS g v t l (_ ∷ c) b) = cMS g v t l (c) b
+removeBlock : CMState Γ → CMState Γ
+removeBlock (cMS g v t l c b) = cMS g v t l c b
 
-addVar : Operand (llvmType t *) → CMState (Δ  ∷ Γ) → CMState ((t ∷ Δ) ∷ Γ)
-addVar x (cMS g v t l (δ  ∷ γ) b) = cMS g v t l ((x ∷ δ) ∷ γ) b
+addVar : Operand (llvmType t *) → CMState Γ → CMState (t ∷ Γ)
+addVar x (cMS g v t l γ b) = cMS g v t l (x ∷ γ) b
 
-removeVar : ∀ {t} → CMState ((t ∷ Δ) ∷ Γ) → CMState (Δ  ∷ Γ)
-removeVar (cMS g v t l ((_ ∷ δ) ∷ γ) b) = cMS g v t l (δ  ∷ γ) b
+removeVar : ∀ {t} → CMState (t ∷ Γ) → CMState Γ
+removeVar (cMS g v t l (_ ∷ γ) b) = cMS g v t l γ b
 
 
 -- Compiler monad
@@ -116,11 +116,10 @@ instance
 runCM : CM Γ A → CMState Γ → (CMState Γ × A)
 runCM m s = runState m s
 
-lookupPtr : CtxList Γ → t ∈' Γ → Operand (llvmType t *)
-lookupPtr (x ∷ xs) (here p)  = lookup x p
-lookupPtr (x ∷ xs) (there s) = lookupPtr xs s
+lookupPtr : CtxList Γ → t ∈ Γ → Operand (llvmType t *)
+lookupPtr xs p = lookup xs p
 
-getPtr : t ∈' Γ → CM Γ (Operand (llvmType t *))
+getPtr : t ∈ Γ → CM Γ (Operand (llvmType t *))
 getPtr p = do ctx ← ctxList <$> get
               pure (lookupPtr ctx p)
 
@@ -141,7 +140,7 @@ lookupNamed : ∀ {n c fs} {χ : TypeTab} → Operand (named n *) → (n , c , f
 lookupNamed x x₁ = emitTmp (bitCast x _)
 
 
-withNewVar : Operand (llvmType t)  → CM ((t ∷ Δ) ∷ Γ) A → CM (Δ ∷ Γ) A
+withNewVar : Operand (llvmType t)  → CM (t ∷ Γ) A → CM Γ A
 withNewVar {t = t} x m = do v ← varC <$> get
                             let p = local $ ident ("v" ++ showℕ v)
                             modify λ s → record s { block = store x p ∷ p := alloc (llvmType t) ∷ block s
@@ -151,7 +150,7 @@ withNewVar {t = t} x m = do v ← varC <$> get
                             put (removeVar s')
                             pure a
 
-inNewBlock : CM ([] ∷ Γ) A → CM Γ A
+inNewBlock : CM Γ A → CM Γ A
 inNewBlock m = do x ← get
                   let (x' , a) = runState m (addBlock x)
                   put (removeBlock x')
@@ -379,7 +378,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileFun glob def = let s , f = runCM compileBody (initState glob)
                         in f , globalS s
     where open Def def
-          withInitBlock : Named Δ → CM (Δ ∷ []) A → CM ([] ∷ []) A
+          withInitBlock : Named Δ → CM Δ A → CM [] A
           withInitBlock [] m = m
           withInitBlock (i ∷ is) m = withInitBlock is (withNewVar (local i) m)
 
@@ -387,7 +386,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
           llvmParams []         = []
           llvmParams (px ∷ pxs) = px ∷ llvmParams pxs
 
-          compileBody : CM ([] ∷ []) (FunDef _ _ _)
+          compileBody : CM [] (FunDef _ _ _)
           compileBody = do putLabel (ident "entry")
                            withInitBlock params do
                                  compileStms body

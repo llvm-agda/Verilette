@@ -1,3 +1,5 @@
+{-# OPTIONS --rewriting #-}
+
 module Main where
 
 open import Javalette.IOLib

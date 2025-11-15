@@ -2,7 +2,7 @@ open import Agda.Builtin.Equality using (refl)
 open import Relation.Binary.PropositionalEquality using (sym)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.List.Relation.Unary.Any using (Any); open Any
-open import Data.List.Relation.Unary.Any.Properties using () renaming (gmap to anyMap)
+open import Data.List.Relation.Unary.Any.Properties using () renaming (gmap to anyMap; concat⁺ to anyConcat)
 open import Data.List.Relation.Binary.Pointwise.Base using (Pointwise); open Pointwise
 open import Data.Product using (_×_; _,_; proj₂)
 
@@ -10,7 +10,7 @@ import Data.Bool    as Bool
 import Data.Integer as Int
 import Data.Float   as Doub
 
-open import Data.List using (List; _∷_; []; _++_; [_]; map; foldr) renaming (_ʳ++_ to _++r_)
+open import Data.List using (List; _∷_; []; _++_; [_]; map; foldr; concat) renaming (_ʳ++_ to _++r_)
 open import Data.List.Properties using (ʳ++-defn)
 open import Function using (_∘_; const; case_of_)
 
@@ -30,14 +30,14 @@ open WellTyped.Return
 open Typed (map proj₂ Σ) χ
 open Valid (map proj₂ Σ) χ
 
-dropAllId' : Block → newBlock
+dropAllId' : Block → newCtx
 dropAllId' = map proj₂
 
 dropAllId : Ctx → newCtx
-dropAllId = map dropAllId'
+dropAllId = concat ∘ map dropAllId'
 
-simplifyLookup : (id , t) ∈' Γ → t ∈' (dropAllId Γ)
-simplifyLookup = anyMap (anyMap λ {refl → refl})
+simplifyLookup : (id , t) ∈' Γ → t ∈ (dropAllId Γ)
+simplifyLookup = anyConcat ∘ anyMap (anyMap λ {refl → refl})
 
 zero : Num T → toSet T
 zero NumInt    = Int.0ℤ

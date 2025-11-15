@@ -39,7 +39,7 @@ Block : Set
 Block = List Type
 
 Ctx : Set
-Ctx = List Block
+Ctx = List Type
 
 Named : ∀ {A} → List A → Set
 Named = All (λ _ → Id)
@@ -146,7 +146,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
 
   data Exp (Γ : Ctx) : Type → Set where
     EValue  : toSet T  → Exp Γ T
-    EId     : T ∈' Γ → Exp Γ T
+    EId     : T ∈ Γ → Exp Γ T
     EAPP    : (ts , T) ∈ Σ → All (Exp Γ) ts → Exp Γ T
     EOp     : Op T' T → (x y : Exp Γ T') → Exp Γ T
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
@@ -163,19 +163,19 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
   mutual
     data Stm : (Γ : Ctx) → Set  where
       SExp    : Exp Γ void → Stm Γ
-      SDecl   : (t : Type) → Exp (Δ ∷ Γ) t → Stm (Δ ∷ Γ)
-      SAss    : t ∈' Γ → (e : Exp Γ t) → Stm Γ
+      SDecl   : (t : Type) → Exp Γ t → Stm Γ
+      SAss    : t ∈ Γ → (e : Exp Γ t) → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
       SAssPtr : ∀ {fs f n c} → Exp Γ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
-      SWhile  : Exp Γ bool  → Stms ([] ∷ Γ) → Stm Γ
+      SWhile  : Exp Γ bool  → Stms Γ → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
-      SFor    : Exp Γ (array t)  → Stms ([ t ] ∷ Γ) → Stm Γ
-      SBlock  : Stms ([] ∷ Γ) → Stm Γ
-      SIfElse : Exp Γ bool → Stms ([] ∷ Γ) → Stms ([] ∷ Γ) → Stm Γ
+      SFor    : Exp Γ (array t)  → Stms (t ∷ Γ) → Stm Γ
+      SBlock  : Stms Γ → Stm Γ
+      SIfElse : Exp Γ bool → Stms Γ → Stms Γ → Stm Γ
       SReturn : Return (Exp Γ) T → Stm Γ
 
     nextCtx : {Γ : Ctx} → Stm Γ → Ctx
-    nextCtx {.(_∷_) Δ Γ} (SDecl t x) = (t ∷ Δ) ∷ Γ
+    nextCtx {Γ} (SDecl t x) = t ∷ Γ
     nextCtx {Γ} (SAssPtr e p q x) = Γ
     nextCtx {Γ} (SExp x)          = Γ
     nextCtx {Γ} (SAss e x)        = Γ
@@ -211,7 +211,7 @@ record Def (Σ : SymbolTab) (χ : TypeTab) (Ts : List Type) (T : Type) : Set  wh
   field
     funId     : Id
     params    : Named Ts
-    body      : Stms Σ χ T (Ts ∷ [])
+    body      : Stms Σ χ T Ts
     voidparam : All (_≢ void) Ts
     return    : returnStms body
 
