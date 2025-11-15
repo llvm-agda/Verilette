@@ -127,7 +127,7 @@ emitTmp {T} x = do tmp ← tmpC <$> get
                    pure operand
 
 -- Might want to do somthing more safe than bitcast
-lookupNamed : ∀ {n c fs} {χ : TypeTab} → Operand (named n *) → (n , c , fs) ∈ χ → CM Γ (Operand (struct (map (llvmType ∘ proj₂) fs) *))
+lookupNamed : ∀ {n fs} {χ : TypeTab} → Operand (named n *) → (n , fs) ∈ χ → CM Γ (Operand (struct (map llvmType fs) *))
 lookupNamed x x₁ = emitTmp (bitCast x _)
 
 
@@ -395,7 +395,7 @@ compileProgram p =
                      { NamedBuiltIn = allMap (λ x → x) NamedBuiltIn
                      ; Strings = strings globState
                      ; hasDefs = help defs
-                     ; χ = map (λ {(n , c , fs) → n , map (llvmType ∘ proj₂) fs}) χ
+                     ; χ = map (λ {(n , fs) → n , map llvmType fs}) χ
                      }
   where open Program p
 

@@ -11,7 +11,7 @@ open import Data.Product using (_×_; _,_; proj₂)
 
 open import Javalette.AST using (Ident; ident; Type); open Type
 open import TypeCheck.Util
-open import TypedSyntax as TS using (TypeTab; Num; Ord; Eq)
+open import TypedSyntax as TS using (Num; Ord; Eq)
 
 open import WellTyped
 open import TypeCheck.CheckExp
@@ -97,15 +97,15 @@ module ReturnsProof {Σ : SymbolTab} {χ : TypeTab} {T : Type} where
   open WellTyped.Declarations Σ χ
   open WellTyped.Return
 
-  open TS.Valid (map proj₂ Σ) χ T
-  open TS.Typed (map proj₂ Σ) χ
+  open TS.Valid (map proj₂ Σ) (map (λ { (n , _ , fs) → n , map proj₂ fs}) χ) T
+  open TS.Typed (map proj₂ Σ) (map (λ { (n , _ , fs) → n , map proj₂ fs}) χ)
   open TS.returnStm
   open TS.returnStms
 
   open import Translate Σ χ using (dropAllId; toExp; toStms; _SCons'_; toDecls)
 
 
-  returnDecl : ∀ {t is} (n : TS.NonVoid χ t)
+  returnDecl : ∀ {t is} (n : NonVoid χ t)
                {ss : Stms (dropAllId Γ')}
                (is' : Star' (DeclP t) Γ is Γ')
                     → TS.returnStms ss → TS.returnStms (toDecls n is' ss)

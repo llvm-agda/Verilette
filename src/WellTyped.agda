@@ -16,12 +16,9 @@ open import Data.Empty using (⊥)
 open import Function using (_$_; _∘_; case_of_; case_return_of_; const)
 
 open import Javalette.AST renaming (Ident to Id)
-open import TypedSyntax as TS using (TypeTab;
-                                    _∈'_; _∈_; _∉_;
-                                    Num; Eq; Ord; NonVoid; Basic;
+open import TypedSyntax as TS using (_∈'_; _∈_; _∉_;
+                                    Num; Eq; Ord;
                                     t; T; Ts)
-open NonVoid
-
 
 module WellTyped where
 
@@ -32,6 +29,8 @@ Block = List (Id × Type)
 Ctx : Set
 Ctx = List Block
 
+TypeTab : Set
+TypeTab = List (Id × Id × List (Id × Type))
 
 FunType : Set
 FunType = List Type × Type
@@ -60,6 +59,19 @@ data OrdOp : RelOp → Set where
 data EqOp : RelOp → Set where
     eQU : EqOp eQU
     nE  : EqOp nE
+
+data Basic (χ : TypeTab) : (T : Type) → Set where
+  BasicInt   : Basic χ int
+  BasicDoub  : Basic χ doub
+  BasicBool  : Basic χ bool
+  BasicStruct : ∀ {n fs} → (n , fs) ∈ χ → Basic χ (structT n)
+
+data NonVoid (χ : TypeTab) : (T : Type) → Set where
+  NonVoidInt    : NonVoid χ int
+  NonVoidDoub   : NonVoid χ doub
+  NonVoidBool   : NonVoid χ bool
+  NonVoidArray  : NonVoid χ t → NonVoid χ (array t)
+  NonVoidStruct : ∀ {n fs} → (n , fs) ∈ χ → NonVoid χ (structT n)
 
 deLen : ArrDecl → Expr
 deLen (arraySize e) = e

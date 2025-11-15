@@ -32,7 +32,7 @@ SymbolTab : Set
 SymbolTab = List FunType
 
 TypeTab : Set
-TypeTab = List (Id × (Id × List (Id × Type)))
+TypeTab = List (Id × List Type)
 
 Ctx : Set
 Ctx = List Type
@@ -105,19 +105,6 @@ data Num : (T : Type) → Set where
   NumInt : Num int
   NumDouble : Num doub
 
-data NonVoid (χ : TypeTab) : (T : Type) → Set where
-  NonVoidInt    : NonVoid χ int
-  NonVoidDoub   : NonVoid χ doub
-  NonVoidBool   : NonVoid χ bool
-  NonVoidArray  : NonVoid χ t → NonVoid χ (array t)
-  NonVoidStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → NonVoid χ (structT n)
-
-data Basic (χ : TypeTab) : (T : Type) → Set where
-  BasicInt   : Basic χ int
-  BasicDoub  : Basic χ doub
-  BasicBool  : Basic χ bool
-  BasicStruct : ∀ {n c fs} → (n , c , fs) ∈ χ → Basic χ (structT n)
-
 data Op : Type → Type → Set where
   OpNum   : Num T → ArithOp → Op T T
   OpOrd   : Ord T → OrdOp   → Op T bool
@@ -148,7 +135,7 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EArray  : ∀ {t} → WFNew (Exp Γ int) array t → Exp Γ t
     EStruct : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
-    EDeRef  : ∀ {n n' fs t c} → Exp Γ (structT n) → (n , c , fs) ∈ χ →  (n' , t) ∈ fs → Exp Γ t
+    EDeRef  : ∀ {n fs t} → Exp Γ (structT n) → (n , fs) ∈ χ →  t ∈ fs → Exp Γ t
     EPrintStr : String → Exp Γ void
 
 
@@ -161,7 +148,7 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
       SDecl   : (t : Type) → Exp Γ t → Stm Γ
       SAss    : t ∈ Γ → (e : Exp Γ t) → Stm Γ
       SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
-      SAssPtr : ∀ {fs f n c} → Exp Γ (structT n) → (n , c , fs) ∈ χ → (f , t) ∈ fs → Exp Γ t → Stm Γ
+      SAssPtr : ∀ {fs n} → Exp Γ (structT n) → (n , fs) ∈ χ → t ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms Γ → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
       SFor    : Exp Γ (array t)  → Stms (t ∷ Γ) → Stm Γ

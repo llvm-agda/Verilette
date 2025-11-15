@@ -16,7 +16,7 @@ open import Function using (_∘_; const; case_of_)
 
 open import WellTyped
 open import Javalette.AST using (Type; Ident; Item; plus; minus); open Type; open Item
-open import TypedSyntax hiding (Γ; Γ') renaming (Ctx to newCtx; SymbolTab to newSymbolTab)
+open import TypedSyntax hiding (Γ; Γ') renaming (Ctx to newCtx; SymbolTab to newSymbolTab; TypeTab to newTypeTab)
 
 
 -- Translating from WellTyped to TypedSyntax
@@ -27,8 +27,8 @@ open Statements Σ χ
 open Declarations Σ χ
 open WellTyped.Return
 
-open Typed (map proj₂ Σ) χ
-open Valid (map proj₂ Σ) χ
+open Typed (map proj₂ Σ) (map (λ { (n , _ , fs) → n , map proj₂ fs}) χ)
+open Valid (map proj₂ Σ) (map (λ { (n , _ , fs) → n , map proj₂ fs}) χ)
 
 dropAllId : Ctx → newCtx
 dropAllId = concat ∘ map (map proj₂)
@@ -50,7 +50,7 @@ toExp eLitFalse     = EValue Bool.false
 toExp (neg p x)     = EOp (OpNum p ArithOp.-)   (EValue (zero p))   (toExp x)
 toExp (not x)       = EOp (OpEq EqBool EqOp.==) (EValue Bool.false) (toExp x)
 toExp (eIndex a i)  = EIdx (toExp a) (toExp i)
-toExp (eDeRef x p p') = EDeRef (toExp x) p p'
+toExp (eDeRef x p p') = EDeRef (toExp x) (anyMap (λ {refl → refl}) p) (anyMap (λ {refl → refl}) p')
 toExp (eNull x)     = EValue 0
 toExp (eStruct x)   = EStruct
 toExp (eArray _ ns) = EArray (toNew ns)
@@ -108,5 +108,5 @@ cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' []) (f SCons' []) ∷ ss
 while x s      SCons' ss = SWhile  (toExp x) (s SCons' []) ∷ ss
 sExp x         SCons' ss = SExp (toExp x) ∷ ss
-assPtr x p q y SCons' ss = SAssPtr (toExp x) p q (toExp y) ∷ ss
+assPtr x p q y SCons' ss = SAssPtr (toExp x) ((anyMap (λ {refl → refl}) p)) (anyMap (λ {refl → refl}) q) (toExp y) ∷ ss
 for id e s     SCons' ss = SFor (toExp e) (s SCons' []) ∷ ss

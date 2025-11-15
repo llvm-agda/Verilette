@@ -19,9 +19,9 @@ open import Data.List.Relation.Unary.Any using (Any); open Any
 
 open import TypeCheck.Monad
 open import Javalette.AST renaming (Expr to Exp; Ident to Id) hiding (String)
-open import TypedSyntax using (_∈_; _∈'_; _∉_; Eq; Ord; Num; NonVoid; Basic; TypeTab; A)
-open Eq; open Ord; open Num; open NonVoid; open Basic
-open import WellTyped
+open import TypedSyntax using (_∈_; _∈'_; _∉_; Eq; Ord; Num; A)
+open Eq; open Ord; open Num
+open import WellTyped; open NonVoid; open Basic
 
 
 InList : List (Id × A) → Id → Set

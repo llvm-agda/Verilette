@@ -11,8 +11,8 @@ open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 
 open import Javalette.AST hiding (String; Stmt) renaming (Expr to Exp; Ident to Id)
-open import TypedSyntax hiding (SymbolTab) renaming (Program to TypedProgram)
-open import WellTyped using (SymbolTab)
+open import TypedSyntax hiding (SymbolTab; TypeTab) renaming (Program to TypedProgram)
+open import WellTyped using (SymbolTab; TypeTab)
 open import TypeCheck.Monad
 open import TypeCheck.Util
 
@@ -59,7 +59,7 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
   open import Translate Σ χ using (toStms)
   import TypeCheck.Proofs as TCP; open TCP.ReturnsProof using (returnProof)
 
-  checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def (map snd Σ) χ ts t)
+  checkFun : (t : Type) (ts : List Type) → TopDef → TCM (Def (map snd Σ) (map (λ { (n , _ , fs) → n , map snd fs}) χ) ts t)
   checkFun t ts (typeDef t₁ t₂) = error "TypeDef is not a function"
   checkFun t ts (struct x fs)   = error "struct  is not a function"
   checkFun t ts (fnDef t' id as (block b)) with
@@ -79,7 +79,7 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
 
 
   -- Σ' contains all the function signatures that should be checked
-  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (All× (Def (map snd Σ) χ) (map snd Σ'))
+  checkFuns : (Σ'  : SymbolTab) → (def : List TopDef) → TCM (All× (Def (map snd Σ) (map (λ { (n , _ , fs) → n , map snd fs}) χ)) (map snd Σ'))
   checkFuns []      []      = pure []
   checkFuns []      (_ ∷ _) = error "More functions than in SyTab"
   checkFuns (_ ∷ _) []      = error "More entries in symtab than defs"
@@ -99,7 +99,7 @@ typeCheck b (program defs) = do
         where _ → error "Found main but with wrong type"
     unique ← checkUnique Σ'
     defs' ← checkFuns Ωχ Σ' Σ defs
-    pure (record { χ       = Ωχ
+    pure (record { χ       = map (λ { (n , _ , fs) → n , map snd fs }) Ωχ
                  ; NamedBuiltIn = toNamed b
                  -- ; hasMain    = p
                  ; hasDefs    = help b Σ defs'
