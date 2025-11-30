@@ -129,6 +129,9 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
   data Exp (Γ : Ctx) : Type → Set where
     EValue  : toSet T  → Exp Γ T
     EId     : T ∈ Γ → Exp Γ T
+    EAss    : T ∈ Γ → Exp Γ T → Exp Γ T
+    EAssIdx : Exp Γ (array T) → Exp Γ int → Exp Γ T → Exp Γ T
+    EAssPtr : ∀ {fs n} → Exp Γ (structT n) → (n , fs) ∈ χ → T ∈ fs → Exp Γ T → Exp Γ T
     EAPP    : (ts , T) ∈ Σ → All (Exp Γ) ts → Exp Γ T
     EOp     : Op T' T → (x y : Exp Γ T') → Exp Γ T
     EIdx    : Exp Γ (array t) → Exp Γ int → Exp Γ t
@@ -144,11 +147,8 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
   mutual
     data Stm : (Γ : Ctx) → Set  where
-      SExp    : Exp Γ void → Stm Γ
+      SExp    : ∀ {t} → Exp Γ t → Stm Γ
       SDecl   : (t : Type) → Exp Γ t → Stm Γ
-      SAss    : t ∈ Γ → (e : Exp Γ t) → Stm Γ
-      SAssIdx : (arr : Exp Γ (array t)) → (i : Exp Γ int) → Exp Γ t → Stm Γ
-      SAssPtr : ∀ {fs n} → Exp Γ (structT n) → (n , fs) ∈ χ → t ∈ fs → Exp Γ t → Stm Γ
       SWhile  : Exp Γ bool  → Stms Γ → Stm Γ
       -- One could imagine replacing for with while, but that requires introducing new variables
       SFor    : Exp Γ (array t)  → Stms (t ∷ Γ) → Stm Γ
@@ -158,10 +158,7 @@ module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
 
     nextCtx : {Γ : Ctx} → Stm Γ → Ctx
     nextCtx {Γ} (SDecl t x) = t ∷ Γ
-    nextCtx {Γ} (SAssPtr e p q x) = Γ
     nextCtx {Γ} (SExp x)          = Γ
-    nextCtx {Γ} (SAss e x)        = Γ
-    nextCtx {Γ} (SAssIdx a i e)   = Γ
     nextCtx {Γ} (SWhile x x₁)     = Γ
     nextCtx {Γ} (SFor e ss)       = Γ
     nextCtx {Γ} (SBlock x)        = Γ

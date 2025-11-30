@@ -222,7 +222,22 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileExp : (e : Exp Γ t) → CM Γ (Operand (llvmType t))
   compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
   compileExp (EId x)           = emitTmp =<< load <$> getPtr x
-
+  compileExp (EAss p e) = do e' ← compileExp e
+                             p' ← getPtr p
+                             emit (store e' p')
+                             pure e'
+  compileExp (EAssIdx arr i x) = do arr' ← compileExp arr
+                                    i' ← compileExp i
+                                    x' ← compileExp x
+                                    i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
+                                    emit (store x' i'')
+                                    pure x'
+  compileExp (EAssPtr e p p' x) = do e' ← compileExp e
+                                     x' ← compileExp x
+                                     s ← lookupNamed e' p
+                                     ptr ← emitTmp (getElemPtr s 0 ((struct (anyMap (λ {refl → refl}) p')) ∷ []))
+                                     emit (store x' ptr)
+                                     pure x'
   compileExp (EOp (OpNum p op) x y) = emitTmp =<< arith (fromNum p) op  <$> compileExp x <*> compileExp y
   compileExp (EOp OpMod     x    y) = emitTmp =<< srem                  <$> compileExp x <*> compileExp y
   compileExp (EOp (OpOrd p op) x y) = emitTmp =<< cmp   (fromOrd p) op' <$> compileExp x <*> compileExp y
@@ -300,20 +315,6 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
                                  compileStms ss
   compileStms (SDecl t x ∷ ss) = do x' ← compileExp x
                                     withNewVar x' $ compileStms ss
-  compileStms (SAss p e  ∷ ss) = do emit =<< store <$> compileExp e <*> getPtr p
-                                    compileStms ss
-  compileStms (SAssIdx arr i x  ∷ ss) = do arr' ← compileExp arr
-                                           i' ← compileExp i
-                                           x' ← compileExp x
-                                           i'' ← emitTmp (getElemPtr arr' 0 ((struct (there (here refl))) ∷ (array i' ∷ []))) -- index 1
-                                           emit (store x' i'')
-                                           compileStms ss
-  compileStms (SAssPtr e p p' x ∷ ss) = do e' ← compileExp e
-                                           x' ← compileExp x
-                                           s ← lookupNamed e' p
-                                           ptr ← emitTmp (getElemPtr s 0 ((struct (anyMap (λ {refl → refl}) p')) ∷ []))
-                                           emit (store x' ptr)
-                                           compileStms ss
   compileStms (SFor arr s ∷ ss) = do arr' ← compileExp arr
                                      forArray arr' λ v* → do
                                            v ← emitTmp (load v*)

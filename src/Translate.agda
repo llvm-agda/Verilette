@@ -98,15 +98,15 @@ toStms {_}        {_}         [] = []
 decl n is      SCons' ss = toDecls n is ss
 empty          SCons' ss = ss
 bStmt x        SCons' ss = SBlock (toStms x) ∷ ss
-ass id x e     SCons' ss = SAss (simplifyLookup x) (toExp e) ∷ ss
-assIdx arr i e SCons' ss = SAssIdx (toExp arr) (toExp i) (toExp e) ∷ ss
-incr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EOp (OpNum NumInt ArithOp.+) (EId x') (EValue Int.1ℤ)) ∷ ss
-decr id x      SCons' ss = let x' = simplifyLookup x in SAss x' (EOp (OpNum NumInt ArithOp.-) (EId x') (EValue Int.1ℤ)) ∷ ss
+ass id x e     SCons' ss = SExp (EAss (simplifyLookup x) (toExp e)) ∷ ss
+assIdx arr i e SCons' ss = SExp (EAssIdx (toExp arr) (toExp i) (toExp e)) ∷ ss
+assPtr x p q y SCons' ss = SExp (EAssPtr (toExp x) (anyMap (λ {refl → refl}) p) (anyMap (λ {refl → refl}) q) (toExp y)) ∷ ss
+incr id x      SCons' ss = let x' = simplifyLookup x in SExp (EAss x' (EOp (OpNum NumInt ArithOp.+) (EId x') (EValue Int.1ℤ))) ∷ ss
+decr id x      SCons' ss = let x' = simplifyLookup x in SExp (EAss x' (EOp (OpNum NumInt ArithOp.-) (EId x') (EValue Int.1ℤ))) ∷ ss
 ret x          SCons' ss = SReturn (Ret (toExp x)) ∷ ss
 vRet refl      SCons' ss = SReturn vRet            ∷ ss
 cond x s       SCons' ss = SIfElse (toExp x) (s SCons' []) []      ∷ ss
 condElse x t f SCons' ss = SIfElse (toExp x) (t SCons' []) (f SCons' []) ∷ ss
 while x s      SCons' ss = SWhile  (toExp x) (s SCons' []) ∷ ss
 sExp x         SCons' ss = SExp (toExp x) ∷ ss
-assPtr x p q y SCons' ss = SAssPtr (toExp x) ((anyMap (λ {refl → refl}) p)) (anyMap (λ {refl → refl}) q) (toExp y) ∷ ss
 for id e s     SCons' ss = SFor (toExp e) (s SCons' []) ∷ ss
