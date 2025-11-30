@@ -16,11 +16,11 @@ ALEX_OPTS  = --ghc
 # Default goal.
 
 all : build
-	-alex ${ALEX_OPTS} Javalette/Lex.x
-	-happy ${HAPPY_OPTS} Javalette/Par.y
-	-rm Javalette/Main.agda
-	-agda -i Javalette/ --ghc --ghc-flag=-Wwarn Main.agda
-	-cp Main ../jlc
+	alex ${ALEX_OPTS} Javalette/Lex.x
+	happy ${HAPPY_OPTS} Javalette/Par.y
+	rm Javalette/Main.agda
+	agda -i Javalette/ --ghc --ghc-flag=-Wwarn Main.agda
+	cp Main ../jlc
 
 # Rules for building the parser.
 
