@@ -5,7 +5,7 @@ module TypeCheck.TypeChecker where
 open import Agda.Builtin.Equality
 open import Agda.Builtin.Equality.Rewrite
 
-open import Data.List using (List; _∷_ ; []; map) renaming (_++_ to _+++_)
+open import Data.List using (List; _∷_ ; []; map; _++_)
 open import Data.List.Properties using (map-++; ++-identityʳ)
 open import Data.List.Relation.Unary.All using (All); open All
 open import Data.Product using (_×_; _,_) renaming (proj₁ to fst ; proj₂ to snd)
@@ -89,11 +89,10 @@ module _ (χ : TypeTab) (Σ : SymbolTab) where
   ... | def@(fnDef t' x as b) = _∷_ <$> checkFun  t ts def <*> checkFuns Σ' defs
 
 
-
 typeCheck : (builtin : SymbolTab) (P : Prog) → TCM TypedProgram
 typeCheck b (program defs) = do
     let Σ , Χ , χ = getTopDef defs
-    let Σ' = b +++ Σ
+    let Σ' = b ++ Σ
     Ωχ ← mergeΧχ Χ χ
     ([] , int) , p ← lookupTCM (ident "main") Σ'
         where _ → error "Found main but with wrong type"
@@ -104,5 +103,5 @@ typeCheck b (program defs) = do
                  -- ; hasMain    = p
                  ; hasDefs    = help b Σ defs'
                  })
-  where help : ∀ {zs χ} → (xs ys : SymbolTab) → All× (Def (map snd (xs +++ ys)) χ) zs → All×  (Def (map snd xs +++ map snd ys) χ) zs
+  where help : ∀ {zs χ} → (xs ys : SymbolTab) → All× (Def (map snd (xs ++ ys)) χ) zs → All×  (Def (map snd xs ++ map snd ys) χ) zs
         help xs ys x rewrite map-++ snd xs ys = x

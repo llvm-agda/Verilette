@@ -54,9 +54,8 @@ module CheckExp (Γ : Ctx) where
   infer (eLitTrue  ) = pure (eLitTrue   ::: bool)
   infer (eLitFalse ) = pure (eLitFalse  ::: bool)
   infer (eString x)  = pure (eLitStr x ::: string)
-  infer (eNull (eVar x)) = do t , p ← lookupTCM x χ
-                              pure (eNull p ::: structT x)
-  infer (eNull _) = error "Error; eNull should take a struct type as argument"
+  infer (eNull x) = do t , p ← lookupTCM x χ
+                       pure (eNull p ::: structT x)
   infer (eIndex e i) = do i' ← checkExp int i
                           e' ::: array t ← infer e
                             where e' ::: _ → error "Tried to index non array expression"
