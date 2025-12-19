@@ -184,3 +184,5 @@ _opam/
 # Agda generated files
 *.agdai
 jlc #PATH dependent
+src/Javalette/
+src/MAlonzo/
