@@ -91,6 +91,7 @@ ifEq (array _)  = error "Array is not Eq type"
 ifEq (structT n)  = pure EqStruct
 ifEq void       = error "Void is not Eq type"
 ifEq (fun T ts) = error "Function is not Eq type"
+ifEq string     = error "String is not Eq type"
 
 ifOrd : (T : Type) → TCM (Ord T)
 ifOrd bool       = error "Bool is not Ord type"
@@ -100,6 +101,7 @@ ifOrd (array _)  = error "Array is not Ord type"
 ifOrd void       = error "Void is not Ord type"
 ifOrd (structT _)  = error "Struct is not Ord type"
 ifOrd (fun T ts) = error "Function is not Ord type"
+ifOrd string     = error "String is not Ord type"
 
 ifNum : (T : Type) → TCM (Num T)
 ifNum bool       = error "Bool is not nmeric"
@@ -109,6 +111,7 @@ ifNum (array _)  = error "Array is not Num type"
 ifNum void       = error "Void is not numeric"
 ifNum (structT _)  = error "Struct is not Num type"
 ifNum (fun T ts) = error "Function is not Num type"
+ifNum string     = error "String is not Num type"
 
 ifNonVoid : (χ : TypeTab) → (T : Type) → TCM (NonVoid χ T)
 ifNonVoid χ bool       = pure NonVoidBool
@@ -119,6 +122,7 @@ ifNonVoid χ (structT n) = do _ , p ← lookupTCM n χ
                              pure (NonVoidStruct p)
 ifNonVoid χ void       = error "Void is not-nonVoid"
 ifNonVoid χ (fun T ts) = error "Function is not-nonVoid"
+ifNonVoid χ string     = error "string is not-nonVoid"
 
 ifBasic : (χ : TypeTab) → (T : Type) → TCM (Basic χ T)
 ifBasic χ bool       = pure BasicBool
@@ -129,6 +133,7 @@ ifBasic χ (structT n)  = do _ , p ← lookupTCM n χ
                             pure (BasicStruct p)
 ifBasic χ void       = error "Void is not a Basic Type"
 ifBasic χ (fun T ts) = error "Function is not a Basic Type"
+ifBasic χ string     = error "String is not a Basic Type"
 
 
 _=T=_ : (a b : Type) → (a ≡ b ⊎ a ≢ b) -- ⊎
@@ -137,6 +142,7 @@ int  =T= int  = inj₁ refl
 int  =T= doub = inj₂ (λ ())
 int  =T= bool = inj₂ (λ ())
 int  =T= void = inj₂ (λ ())
+int  =T= string = inj₂ (λ ())
 int  =T= (array _) = inj₂ (λ ())
 int  =T= (structT _) = inj₂ (λ ())
 int  =T= fun b ts = inj₂ (λ ())
@@ -144,6 +150,7 @@ doub =T= int = inj₂ (λ ())
 doub =T= doub = inj₁ refl
 doub =T= bool = inj₂ (λ ())
 doub =T= void = inj₂ (λ ())
+doub =T= string = inj₂ (λ ())
 doub =T= (array _) = inj₂ (λ ())
 doub =T= (structT _) = inj₂ (λ ())
 doub =T= fun b ts = inj₂ (λ ())
@@ -151,6 +158,7 @@ bool =T= int = inj₂ (λ ())
 bool =T= doub = inj₂ (λ ())
 bool =T= bool = inj₁ refl
 bool =T= void = inj₂ (λ ())
+bool =T= string = inj₂ (λ ())
 bool =T= (array _) = inj₂ (λ ())
 bool =T= (structT _) = inj₂ (λ ())
 bool =T= fun b ts = inj₂ (λ ())
@@ -158,13 +166,23 @@ void =T= int = inj₂ (λ ())
 void =T= doub = inj₂ (λ ())
 void =T= bool = inj₂ (λ ())
 void =T= void = inj₁ refl
+void =T= string = inj₂ (λ ())
 void =T= (array _) = inj₂ λ ()
 void =T= (structT _) = inj₂ (λ ())
 void =T= fun b ts = inj₂ (λ ())
+string  =T= int  = inj₂ (λ ())
+string  =T= string = inj₁ refl
+string  =T= doub = inj₂ (λ ())
+string  =T= bool = inj₂ (λ ())
+string  =T= void = inj₂ (λ ())
+string  =T= (array _) = inj₂ (λ ())
+string  =T= (structT _) = inj₂ (λ ())
+string  =T= fun b ts = inj₂ (λ ())
 structT x =T= int  = inj₂ (λ ())
 structT x =T= doub = inj₂ (λ ())
 structT x =T= bool = inj₂ (λ ())
 structT x =T= void = inj₂ (λ ())
+structT x =T= string = inj₂ (λ ())
 structT x =T= fun y ts = inj₂ (λ ())
 structT x =T= array y = inj₂ (λ ())
 structT x =T= structT x₁ with x eqId x₁
@@ -174,6 +192,7 @@ array x =T= int  = inj₂ (λ ())
 array x =T= doub = inj₂ (λ ())
 array x =T= bool = inj₂ (λ ())
 array x =T= void = inj₂ (λ ())
+array x =T= string = inj₂ (λ ())
 array x =T= (structT _) = inj₂ (λ ())
 array x =T= fun y ts = inj₂ (λ ())
 array x =T= array y with x =T= y
@@ -183,6 +202,7 @@ fun a ts =T= int = inj₂ (λ ())
 fun a ts =T= doub = inj₂ (λ ())
 fun a ts =T= bool = inj₂ (λ ())
 fun a ts =T= void = inj₂ (λ ())
+fun x ts =T= string = inj₂ (λ ())
 fun a ts =T= (array _) = inj₂ (λ ())
 fun a ts =T= (structT _) = inj₂ (λ ())
 fun a as =T= fun b bs with eqLists' (a ∷ as) (b ∷ bs)

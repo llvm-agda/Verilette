@@ -103,7 +103,6 @@ pInst {T} inst with inst
 ... | alloc t        = unwords $ "alloca" ∷ pType t     ∷ []
 ... | load x         = unwords $ "load"   ∷ pType T     ∷ "," ∷ pTypeOper x ∷ []
 ... | store o p      = unwords $ "store"  ∷ pTypeOper o ∷ "," ∷ pTypeOper p ∷ []
-... | call (global (ident "printString")) (x ∷ []) = "call void @printString( i8* " ++ pOperand x ++ ")"
 ... | call {T} x xs  = unwords $ "call"   ∷ pType T ∷ (pOperand x ++ "(" ) ∷ pCall xs ∷ ")" ∷ []
 ... | ptrToInt x     = unwords $ "ptrtoint" ∷ pTypeOper x ∷ "to" ∷ pType i32 ∷ []
 ... | bitCast x t'   = unwords $ "bitcast"  ∷ pTypeOper x ∷ "to" ∷ pType t' ∷ []
@@ -140,10 +139,8 @@ pProgram p = intersperse "\n\n" $ pCalloc ∷ unlines pBuiltIn ∷ unlines pType
                        "@" ++ i ++ " = internal constant [ " ++ showℕ (length s) ++ " x i8 ] c\"" ++ s ++ "\""}) Strings
 
         pBuiltIn : List String
-        pBuiltIn = reduce (λ
-                     { (ident "printString") → "declare void @printString(i8*)" -- since we use a "hack" for printString
-                     ; {ts , t} (ident i) →
-                            "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) NamedBuiltIn
+        pBuiltIn = reduce (λ { {ts , t} (ident i) →
+                          "declare " ++ pType t ++ " @" ++ i ++ "(" ++ intersperse ", " (map pType ts) ++ ")" }) NamedBuiltIn
 
         pTypes : List String
         pTypes = map (λ { (ident x , ts) → "%" ++ x ++ " = type { " ++ intersperse ", " (map pType ts) ++ "}"  })  χ

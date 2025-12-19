@@ -19,11 +19,11 @@ open import TypeCheck.Util
 {-# REWRITE ++-identityʳ #-}
 
 builtin : SymbolTab
-builtin = (ident "printInt"    , (int  ∷ [] , void))
-        ∷ (ident "printString" , (void ∷ [] , void)) -- HACK for string
-        ∷ (ident "printDouble" , (doub ∷ [] , void))
-        ∷ (ident "readInt"     , (       [] , int ))
-        ∷ (ident "readDouble"  , (       [] , doub)) ∷ []
+builtin = (ident "printInt"    , (int    ∷ [] , void))
+        ∷ (ident "printString" , (string ∷ [] , void))
+        ∷ (ident "printDouble" , (doub   ∷ [] , void))
+        ∷ (ident "readInt"     , (         [] , int ))
+        ∷ (ident "readDouble"  , (         [] , doub)) ∷ []
 
 toNamed : (xs : List (Id × A)) → Named (map snd xs)
 toNamed [] = []

@@ -72,6 +72,8 @@ Bool.      Type ::= "boolean" ;
 
 Void.      Type ::= "void" ;
 
+internal   String. Type ::= "sting" ;
+
 internal   Fun. Type ::= Type "(" [Type] ")" ;
 
 Array.     Type ::= Type "[]" ;
@@ -158,4 +160,3 @@ comment    "#" ;
 comment    "//" ;
 
 comment    "/*" "*/" ;
-

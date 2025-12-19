@@ -83,6 +83,7 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
   data _⊢_∶_ (Γ : Ctx) : (e : Expr) → Type → Set where
     eLitInt   : ∀ x → Γ ⊢ eLitInt x ∶ int
     eLitDoub  : ∀ x → Γ ⊢ eLitDoub x ∶ doub
+    eLitStr   : ∀ x → Γ ⊢ eString x ∶ string
     eLitTrue  : Γ ⊢ eLitTrue ∶ bool
     eLitFalse : Γ ⊢ eLitFalse ∶ bool
 
@@ -113,10 +114,6 @@ module Expression (Σ : SymbolTab) (χ : TypeTab) where
 
     eAnd : (Γ ⊢ x ∶ bool) → (Γ ⊢ y ∶ bool) → Γ ⊢ eAnd x y ∶ bool
     eOr  : (Γ ⊢ x ∶ bool) → (Γ ⊢ y ∶ bool) → Γ ⊢ eOr  x y ∶ bool
-
-    -- eString is not wellTyped on its own
-    ePrintString : ∀ s → Γ ⊢ eApp (ident "printString") (eString s ∷ []) ∶ void
-
 
 -- Reflexiv Transitive closure over list, i.e. a chain
 module _ {A O : Set} (P : A → O → A → Set) where

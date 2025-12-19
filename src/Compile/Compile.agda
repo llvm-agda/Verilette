@@ -41,6 +41,7 @@ llvmTypes : List OldType → List Type
 llvmType OldType.int  = i32
 llvmType OldType.doub = float
 llvmType OldType.bool = i1
+llvmType OldType.string = i8 *
 llvmType OldType.void = void
 llvmType (OldType.structT x) = named x *
 llvmType (OldType.array t)  = struct (i32 ∷ [ 0 × llvmType t ] ∷ []) *
@@ -48,16 +49,6 @@ llvmType (OldType.fun t ts) = fun (llvmType t) (llvmTypes ts)
 
 llvmTypes [] = []
 llvmTypes (x ∷ xs) = llvmType x ∷ llvmTypes xs
-
-
-toSetProof : (t : OldType) → oldToSet t ≡ toSet (llvmType t)
-toSetProof OldType.int  = refl
-toSetProof OldType.doub = refl
-toSetProof OldType.bool = refl
-toSetProof OldType.void = refl
-toSetProof (OldType.structT x) = refl
-toSetProof (OldType.array t) = refl
-toSetProof (OldType.fun t ts) = refl
 
 CtxList : Ctx → Set
 CtxList = All (λ t → Operand (llvmType t *))
@@ -212,6 +203,18 @@ forArray arr f = do lenPtr ← emitTmp (getElemPtr arr 0 (struct (here refl) ∷
                     putLabel end
                     pure sRet
 
+oldSetToOperand : {t : OldType} → oldToSet t → CM Γ (Operand (llvmType t))
+oldSetToOperand {t = OldType.int} x = pure (const x)
+oldSetToOperand {t = OldType.doub} x = pure (const x)
+oldSetToOperand {t = OldType.bool} x = pure (const x)
+oldSetToOperand {t = OldType.string} x = do gS c strs ← globalS <$> get
+                                            let str = fromList x ++ "\00"
+                                            let id = ident ("str" ++ showℕ c)
+                                            let globalOper = global {[ length str × i8 ] *} id
+                                            modify λ s → record s {globalS = gS (suc c) ((id , str) ∷ strs)}
+                                            emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
+oldSetToOperand {t = OldType.array t} x = pure (const x)
+oldSetToOperand {t = OldType.structT x₁} x = pure (const x)
 
 -- Compilation using a given SymTab σ
 module _ (σ : SymTab Σ) (χ : TypeTab) where
@@ -220,7 +223,7 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   open Valid Σ χ
 
   compileExp : (e : Exp Γ t) → CM Γ (Operand (llvmType t))
-  compileExp (EValue {t} x) rewrite toSetProof t = pure (const x)
+  compileExp (EValue {t} x) = oldSetToOperand x
   compileExp (EId x)           = emitTmp =<< load <$> getPtr x
   compileExp (EAss p e) = do e' ← compileExp e
                              p' ← getPtr p
@@ -292,14 +295,6 @@ module _ (σ : SymTab Σ) (χ : TypeTab) where
   compileExp (ELength x)  = do arr ← compileExp x
                                len ← emitTmp (getElemPtr arr 0 ((struct (here refl)) ∷ [])) -- index 0
                                emitTmp (load len)
-  compileExp (EPrintStr x) = do gS c strs ← globalS <$> get
-                                let str = fromList x ++ "\00"
-                                let id = ident ("str" ++ showℕ c)
-                                let globalOper = global {[ length str × i8 ] *} id
-                                modify λ s → record s {globalS = gS (suc c) ((id , str) ∷ strs)}
-
-                                operand ← emitTmp (getElemPtr globalOper 0 (array (const (pos 0)) ∷ []))
-                                emitTmp (call (global (ident "printString")) (operand ∷ []))
   compileExp (EAPP p es) = emitTmp =<< call (global (lookup σ p)) <$> mapCompileExp es
     where mapCompileExp : All (Exp Γ) ts → CM Γ (All Operand (llvmTypes ts))
           mapCompileExp []       = pure []

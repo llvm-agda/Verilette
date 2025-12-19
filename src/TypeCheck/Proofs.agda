@@ -38,6 +38,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   =T=Refl doub = refl
   =T=Refl bool = refl
   =T=Refl void = refl
+  =T=Refl string = refl
   =T=Refl (structT x) rewrite eqIdRefl x = refl
   =T=Refl (array t) rewrite =T=Refl t = refl
   =T=Refl (fun t ts) rewrite =T=Refl t rewrite eqListsRefl ts = refl
@@ -46,6 +47,7 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   inferProof : ∀ {e t} → (eT : Γ ⊢ e ∶ t) → infer e ≡ inj₂ (eT ::: t)
   inferProof (eLitInt x) = refl
   inferProof (eLitDoub x) = refl
+  inferProof (eLitStr x) = refl
   inferProof eLitTrue = refl
   inferProof eLitFalse = refl
   inferProof (eVar id x) = {!!}
@@ -83,7 +85,6 @@ module ExpressionProofs (Σ : SymbolTab) (χ : TypeTab) (Γ : Ctx) where
   inferProof (eEq x x₁ x₂ x₃) = {!!}
   inferProof (eAnd eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
   inferProof (eOr  eT eT₁) rewrite inferProof eT rewrite inferProof eT₁ = refl
-  inferProof (ePrintString s) = refl
 
   -- Every well typed expression will type check to itself -- completeness
   checkProof : ∀ {e t} → (eT : Γ ⊢ e ∶ t) → checkExp t e ≡ inj₂ eT

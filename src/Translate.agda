@@ -45,6 +45,7 @@ toExp : Γ ⊢ e ∶ T → Exp (dropAllId Γ) T
 toExp (eVar id x)   = EId (simplifyLookup x)
 toExp (eLitInt x)   = EValue x
 toExp (eLitDoub x)  = EValue x
+toExp (eLitStr x)   = EValue x
 toExp eLitTrue      = EValue Bool.true
 toExp eLitFalse     = EValue Bool.false
 toExp (neg p x)     = EOp (OpNum p ArithOp.-)   (EValue (zero p))   (toExp x)
@@ -69,8 +70,7 @@ toExp (eOrd op p x y)    = EOp (OpOrd p op')    (toExp x) (toExp y)
   where op' = case op of λ {lTH → OrdOp.< ; lE → OrdOp.<= ; gTH → OrdOp.> ; gE → OrdOp.>=}
 toExp (eAnd x y)         = EOp (OpLogic LogicOp.&&) (toExp x) (toExp y)
 toExp (eOr  x y)         = EOp (OpLogic LogicOp.||) (toExp x) (toExp y)
-toExp (ePrintString s) = EPrintStr s
-toExp (eApp id p xs)   = EAPP (anyMap (λ {refl → refl}) p) (mapToExp xs)
+toExp (eApp id p xs)     = EAPP (anyMap (λ {refl → refl}) p) (mapToExp xs)
   where mapToExp : ∀ {es Ts} → Pointwise (Γ ⊢_∶_) es Ts → All (Exp (dropAllId Γ)) Ts
         mapToExp [] = []
         mapToExp (x ∷ xs) = toExp x ∷ mapToExp xs

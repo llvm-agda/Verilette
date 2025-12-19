@@ -53,7 +53,7 @@ module CheckExp (Γ : Ctx) where
   infer (eLitDoub x) = pure (eLitDoub x ::: doub)
   infer (eLitTrue  ) = pure (eLitTrue   ::: bool)
   infer (eLitFalse ) = pure (eLitFalse  ::: bool)
-  infer (eString x)  = error "Encountered string outside of printString"
+  infer (eString x)  = pure (eLitStr x ::: string)
   infer (eNull (eVar x)) = do t , p ← lookupTCM x χ
                               pure (eNull p ::: structT x)
   infer (eNull _) = error "Error; eNull should take a struct type as argument"
@@ -111,7 +111,6 @@ module CheckExp (Γ : Ctx) where
   infer (eOr x y)  = do (x' , y') ::: bool ← inferPair x y
                             where _ ::: t → error "non-bool expression found in or"
                         pure (eOr  x' y' ::: bool)
-  infer (eApp (ident "printString") (eString s ∷ [])) = pure (ePrintString s ::: void)
   infer (eApp x es) = do (ts , t) , p ← lookupTCM x Σ
                          es' ::: ts' ← inferList es
                          refl ← eqLists ts ts'

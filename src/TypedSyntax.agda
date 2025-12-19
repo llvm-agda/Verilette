@@ -77,6 +77,7 @@ toSet bool = Bool.Bool
 toSet int = Int.ℤ
 toSet doub = Doub.Float
 toSet void = ⊥
+toSet string = String
 toSet (array t) = Ptr
 toSet (structT x) = Ptr
 toSet (fun t ts) = ⊥ -- toFun t ts
@@ -139,8 +140,6 @@ module Typed (Σ : SymbolTab) (χ : TypeTab) where
     EStruct : ∀ {n} → Exp Γ (structT n)
     ELength : Exp Γ (array t) → Exp Γ int
     EDeRef  : ∀ {n fs t} → Exp Γ (structT n) → (n , fs) ∈ χ →  t ∈ fs → Exp Γ t
-    EPrintStr : String → Exp Γ void
-
 
 module Valid (Σ : SymbolTab) (χ : TypeTab) (T : Type) where
   open Typed Σ χ
